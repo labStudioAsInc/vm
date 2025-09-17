@@ -1,0 +1,105 @@
+name: Fast RDP (Customizable)
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: 'Select ngrok region'
+        required: true
+        default: 'in'
+        type: choice
+        options:
+          - us
+          - eu
+          - ap
+          - au
+          - sa
+          - jp
+          - in
+      os_type:
+        description: 'Select Windows OS'
+        required: true
+        default: 'windows-latest'
+        type: choice
+        options:
+          - windows-latest
+          - windows-2022
+          - windows-2019
+
+jobs:
+  fast-rdp:
+    runs-on: ${{ github.event.inputs.os_type }}
+    timeout-minutes: 3600
+
+    steps:
+      - name: Configure RDP
+        run: |
+          # Enable RDP
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
+          netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
+          Restart-Service -Name TermService -Force
+
+      - name: Create User with Custom Credentials
+        run: |
+          # Create user with fixed credentials
+          $securePass = ConvertTo-SecureString "Ashik2006" -AsPlainText -Force
+          New-LocalUser -Name "Ashik" -Password $securePass -AccountNeverExpires -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Administrators" -Member "Ashik" -ErrorAction SilentlyContinue
+          Set-LocalUser -Name "Ashik" -Password $securePass -ErrorAction SilentlyContinue
+
+      - name: Setup Ngrok (Fast TCP Tunnel)
+        run: |
+          # Download ngrok
+          Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile "$env:TEMP\ngrok.zip"
+          Expand-Archive -Path "$env:TEMP\ngrok.zip" -DestinationPath "$env:TEMP\ngrok" -Force
+          
+          # Start ngrok tunnel with selected region
+          $region = "${{ github.event.inputs.region }}"
+          Start-Process -FilePath "$env:TEMP\ngrok\ngrok.exe" -ArgumentList "tcp", "3389", "--authtoken", "${{ secrets.NGROK_AUTH_TOKEN }}", "--region", $region -WindowStyle Hidden
+          Start-Sleep -Seconds 5
+          
+          # Get the public URL
+          try {
+            $tunnelInfo = (Invoke-WebRequest -Uri "http://localhost:4040/api/tunnels" -UseBasicParsing).Content | ConvertFrom-Json
+            $publicUrl = $tunnelInfo.tunnels[0].public_url
+            $rdpAddress = $publicUrl -replace "tcp://", "" -replace ":\d+", ""
+            $rdpPort = $publicUrl -replace ".*:", ""
+            
+            echo "RDP_ADDRESS=$rdpAddress" >> $env:GITHUB_ENV
+            echo "RDP_PORT=$rdpPort" >> $env:GITHUB_ENV
+            Write-Host "Ngrok Tunnel Established: $publicUrl"
+          } catch {
+            Write-Host "Failed to get tunnel information. Retrying..."
+            Start-Sleep -Seconds 5
+            $tunnelInfo = (Invoke-WebRequest -Uri "http://localhost:4040/api/tunnels" -UseBasicParsing).Content | ConvertFrom-Json
+            $publicUrl = $tunnelInfo.tunnels[0].public_url
+            $rdpAddress = $publicUrl -replace "tcp://", "" -replace ":\d+", ""
+            $rdpPort = $publicUrl -replace ".*:", ""
+            
+            echo "RDP_ADDRESS=$rdpAddress" >> $env:GITHUB_ENV
+            echo "RDP_PORT=$rdpPort" >> $env:GITHUB_ENV
+            Write-Host "Ngrok Tunnel Established: $publicUrl"
+          }
+
+      - name: Display Connection Info
+        run: |
+          Write-Host "`n🎯 **ULTRA-FAST RDP CONNECTION**"
+          Write-Host "=========================================="
+          Write-Host "Address: $env:RDP_ADDRESS"
+          Write-Host "Port: $env:RDP_PORT"
+          Write-Host "Username: Ashik"
+          Write-Host "Password: Ashik2006"
+          Write-Host "Region: ${{ github.event.inputs.region }}"
+          Write-Host "OS: ${{ github.event.inputs.os_type }}"
+          Write-Host "=========================================="
+          Write-Host "`nIn Remote Desktop Connection:"
+          Write-Host "Computer: $env:RDP_ADDRESS:$env:RDP_PORT"
+          Write-Host "==========================================`n"
+
+      - name: Maintain Connection
+        run: |
+          while ($true) {
+              Write-Host "[$(Get-Date)] RDP Ready - Connect to: $env:RDP_ADDRESS:$env:RDP_PORT"
+              Start-Sleep -Seconds 60
+          }
