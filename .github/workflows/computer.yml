@@ -1,27 +1,38 @@
-name: Remote Computers
+name: Remote Desktop
 
 on:
   workflow_dispatch:
     inputs:
       os:
-        description: 'Select Operating System'
+        description: 'Select Operating System (older versions available)'
         required: true
         type: choice
         options:
         - windows-latest
+        - windows-2019
         - ubuntu-latest
+        - ubuntu-22.04
         - macos-latest
+        - macos-14
         default: 'windows-latest'
       region:
-        description: 'Ngrok Tunnel Region (e.g., us, eu, ap, au, sa, jp, in)'
+        description: 'Select Ngrok Tunnel Region'
         required: true
-        type: string
+        type: choice
+        options:
+        - "us" # United States (Ohio)
+        - "eu" # Europe (Frankfurt)
+        - "ap" # Asia/Pacific (Singapore)
+        - "au" # Australia (Sydney)
+        - "sa" # South America (São Paulo)
+        - "jp" # Japan (Tokyo)
+        - "in" # India (Mumbai)
         default: 'in'
       timeout:
         description: 'Session Timeout (minutes)'
         required: true
         type: number
-        default: 3600
+        default: 360
       username:
         description: 'Custom Username'
         required: true
@@ -40,7 +51,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # --- Windows Setup ---
       - name: Configure RDP on Windows
@@ -55,7 +66,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           $securePass = ConvertTo-SecureString "${{ github.event.inputs.password }}" -AsPlainText -Force
-          New-LocalUser -Name "${{ github.event.inputs.username }}" -Password $securePass -AccountNeverExpires
+          New-LocalUser -Name "${{ github.event.inputs.username }}" -Password $securePass
           Add-LocalGroupMember -Group "Administrators" -Member "${{ github.event.inputs.username }}"
 
       # --- Linux (Ubuntu) Setup ---
@@ -73,11 +84,29 @@ jobs:
           sudo useradd -m -s /bin/bash ${{ github.event.inputs.username }}
           echo "${{ github.event.inputs.username }}:${{ github.event.inputs.password }}" | sudo chpasswd
           sudo adduser ${{ github.event.inputs.username }} sudo
+          
+      # --- macOS Setup (Note: RDP setup is more complex and may require additional steps) ---
+      - name: Enable Remote Management on macOS
+        if: runner.os == 'macOS'
+        run: |
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -users "${{ github.event.inputs.username }}" -privs -all -restart -agent -menu
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -allowAccessFor -allUsers -privs -all
 
+      - name: Create User on macOS
+        if: runner.os == 'macOS'
+        run: |
+          sudo dscl . -create /Users/${{ github.event.inputs.username }}
+          sudo dscl . -create /Users/${{ github.event.inputs.username }} UserShell /bin/bash
+          sudo dscl . -create /Users/${{ github.event.inputs.username }} RealName "${{ github.event.inputs.username }}"
+          sudo dscl . -create /Users/${{ github.event.inputs.username }} UniqueID "1001"
+          sudo dscl . -create /Users/${{ github.event.inputs.username }} PrimaryGroupID "20"
+          sudo dscl . -create /Users/${{ github.event.inputs.username }} NFSHomeDirectory /Users/${{ github.event.inputs.username }}
+          sudo dscl . -passwd /Users/${{ github.event.inputs.username }} "${{ github.event.inputs.password }}"
+          sudo dscl . -append /Groups/admin GroupMembership ${{ github.event.inputs.username }}
+          
       # --- Ngrok Tunneling (Cross-Platform) ---
       - name: Setup Ngrok Tunnel
         run: |
-          # Download and start ngrok for the specific OS
           if [ "$RUNNER_OS" == "Windows" ]; then
             Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile "$env:TEMP\ngrok.zip"
             Expand-Archive -Path "$env:TEMP\ngrok.zip" -DestinationPath "$env:TEMP\ngrok" -Force
@@ -85,20 +114,23 @@ jobs:
           elif [ "$RUNNER_OS" == "Linux" ]; then
             curl -s https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | sudo tar -C /usr/local/bin -xz
             ngrok tcp 3389 --authtoken "${{ secrets.NGROK_AUTH_TOKEN }}" --region "${{ github.event.inputs.region }}" &> /dev/null &
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            curl -s https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-darwin-amd64.zip -o ngrok.zip
+            unzip ngrok.zip
+            ./ngrok tcp 3389 --authtoken "${{ secrets.NGROK_AUTH_TOKEN }}" --region "${{ github.event.inputs.region }}" &> /dev/null &
           fi
           
           sleep 8
           
-          # Get the public URL and set environment variables
-          $tunnelInfo = (Invoke-WebRequest -Uri "http://localhost:4040/api/tunnels" -UseBasicParsing).Content | ConvertFrom-Json
-          $publicUrl = $tunnelInfo.tunnels[0].public_url
-          $rdpAddress = $publicUrl -replace "tcp://", "" -replace ":\d+", ""
-          $rdpPort = $publicUrl -replace ".*:", ""
+          curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url' > ngrok_url.txt
           
-          echo "RDP_ADDRESS=$rdpAddress" >> $env:GITHUB_ENV
-          echo "RDP_PORT=$rdpPort" >> $env:GITHUB_ENV
-          Write-Host "Ngrok Tunnel Established: $publicUrl"
-        shell: pwsh
+          RDP_URL=$(cat ngrok_url.txt)
+          RDP_ADDRESS=$(echo $RDP_URL | sed 's|tcp://||' | sed -E 's|:[0-9]+||')
+          RDP_PORT=$(echo $RDP_URL | sed -E 's|.*:||')
+          
+          echo "RDP_ADDRESS=$RDP_ADDRESS" >> $GITHUB_ENV
+          echo "RDP_PORT=$RDP_PORT" >> $GITHUB_ENV
+        shell: bash
 
       # --- Display Connection Info ---
       - name: Display Connection Details
@@ -119,7 +151,7 @@ jobs:
       # --- Maintain Connection ---
       - name: Keep Workflow Alive
         run: |
-          while ($true) {
+          while (true) {
               Write-Host "[$(Get-Date)] RDP Ready - Connect to: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
               Start-Sleep -Seconds 60
           }
