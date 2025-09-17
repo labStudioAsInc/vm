@@ -1,4 +1,4 @@
-name: Remote Desktop
+name: Customizable Remote Desktop
 
 on:
   workflow_dispatch:
@@ -55,11 +55,9 @@ jobs:
         run: |
           $password = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 20 | ForEach-Object { [char]$_ })
           echo "GENERATED_PASSWORD=$password" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
-          
           $securePass = ConvertTo-SecureString "$password" -AsPlainText -Force
           New-LocalUser -Name "${{ github.event.inputs.username }}" -Password $securePass -FullName "${{ github.event.inputs.username }}"
           Add-LocalGroupMember -Group "Administrators" -Member "${{ github.event.inputs.username }}"
@@ -89,65 +87,60 @@ jobs:
           sudo dscl . -append /Groups/admin GroupMembership "${{ github.event.inputs.username }}"
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -users "${{ github.event.inputs.username }}" -privs -all -restart -agent -menu
 
-      # --- Ngrok Tunneling (Final Version) ---
+      # --- Ngrok Tunneling (Final macOS Fix) ---
       - name: Setup Ngrok Tunnel
-        shell: pwsh
+        shell: bash
         run: |
-          $region = "${{ github.event.inputs.region }}"
-          $authToken = "${{ secrets.NGROK_AUTH_TOKEN }}"
-          $ngrokLog = "ngrok.log"
+          REGION="${{ github.event.inputs.region }}"
+          AUTH_TOKEN="${{ secrets.NGROK_AUTH_TOKEN }}"
+          NGROK_LOG="ngrok.log"
 
-          if ($env:RUNNER_OS -eq "Windows") {
-              Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
-              Expand-Archive ngrok.zip -DestinationPath .
-              $ngrokExe = ".\ngrok.exe"
-          } elseif ($env:RUNNER_OS -eq "Linux") {
-              Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz" -OutFile "ngrok.tgz"
-              tar -xvzf ngrok.tgz
-              $ngrokExe = "./ngrok"
-          } elseif ($env:RUNNER_OS -eq "macOS") {
-              Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-darwin-amd64.zip" -OutFile "ngrok.zip"
-              unzip ngrok.zip
-              $ngrokExe = "./ngrok"
-          }
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            pwsh -Command "Invoke-WebRequest -Uri 'https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip' -OutFile 'ngrok.zip'; Expand-Archive ngrok.zip -DestinationPath ."
+            NGROK_EXE="./ngrok.exe"
+          elif [[ "$RUNNER_OS" == "Linux" ]]; then
+            curl -s https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar -xvz
+            NGROK_EXE="./ngrok"
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-darwin-amd64.zip -o ngrok.zip
+            unzip ngrok.zip
+            NGROK_EXE="./ngrok"
+          fi
+
+          chmod +x $NGROK_EXE
           
-          # --- KEY FIX: Add execute permissions on Linux/macOS ---
-          if ($env:RUNNER_OS -ne "Windows") {
-              chmod +x $ngrokExe
-          }
-          
-          Write-Host "Starting ngrok tunnel..."
-          if ($env:RUNNER_OS -eq "Windows") {
-              Start-Process -FilePath $ngrokExe -ArgumentList "tcp", "3389", "--authtoken", $authToken, "--region", $region, "--log", $ngrokLog
-          } else {
-              ./$ngrokExe tcp 3389 --authtoken $authToken --region $region --log $ngrokLog &
-          }
+          echo "Starting ngrok tunnel..."
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            pwsh -Command "Start-Process -FilePath '$NGROK_EXE' -ArgumentList 'tcp', '3389', '--authtoken', '$AUTH_TOKEN', '--region', '$REGION', '--log', '$NGROK_LOG'"
+          else
+            nohup $NGROK_EXE tcp 3389 --authtoken "$AUTH_TOKEN" --region "$REGION" --log "$NGROK_LOG" &> /dev/null &
+          fi
 
-          Write-Host "Waiting for ngrok API..."
-          $maxRetries = 20; $retryDelay = 3; $tunnelInfo = $null
-          for ($i=1; $i -le $maxRetries; $i++) {
-              try {
-                  $tunnelInfo = Invoke-WebRequest -Uri "http://localhost:4040/api/tunnels" -UseBasicParsing | ConvertFrom-Json
-                  if ($tunnelInfo.tunnels.Count -gt 0 -and $tunnelInfo.tunnels[0].public_url) { break }
-              } catch { 
-                  Write-Host "Connection attempt $i failed. Retrying..."
-                  Start-Sleep -Seconds $retryDelay 
-              }
-          }
+          echo "Waiting for ngrok API..."
+          MAX_RETRIES=20
+          RETRY_DELAY=3
+          for ((i=1; i<=MAX_RETRIES; i++)); do
+            TUNNEL_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url // empty')
+            if [ -n "$TUNNEL_URL" ]; then
+              echo "Successfully connected to ngrok API."
+              break
+            fi
+            echo "Connection attempt $i failed. Retrying..."
+            sleep $RETRY_DELAY
+          done
 
-          if (-not $tunnelInfo -or $tunnelInfo.tunnels.Count -eq 0) {
-              Write-Error "Failed to get ngrok tunnel info."
-              Write-Host "Dumping ngrok log for debugging:"
-              Get-Content $ngrokLog
-              exit 1
-          }
+          if [ -z "$TUNNEL_URL" ]; then
+            echo "::error::Failed to get ngrok tunnel info after $MAX_RETRIES retries."
+            echo "Dumping ngrok log for debugging:"
+            cat $NGROK_LOG
+            exit 1
+          fi
 
-          $publicUrl = $tunnelInfo.tunnels[0].public_url
-          $rdpAddress = ($publicUrl -split '//')[1].Split(':')[0]
-          $rdpPort = ($publicUrl -split ':')[-1]
-          
-          "RDP_ADDRESS=$rdpAddress" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "RDP_PORT=$rdpPort" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          RDP_ADDRESS=$(echo $TUNNEL_URL | sed 's|tcp://||' | cut -d: -f1)
+          RDP_PORT=$(echo $TUNNEL_URL | sed 's|tcp://||' | cut -d: -f2)
+
+          echo "RDP_ADDRESS=$RDP_ADDRESS" >> $GITHUB_ENV
+          echo "RDP_PORT=$RDP_PORT" >> $GITHUB_ENV
 
       # --- Display Connection Info ---
       - name: Display Connection Details
