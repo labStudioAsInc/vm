@@ -1,4 +1,4 @@
-name: Fast RDP via Ngrok
+name: Fast RDP (IN)
 
 on:
   workflow_dispatch:
