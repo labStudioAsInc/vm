@@ -38,11 +38,6 @@ on:
         required: true
         type: string
         default: 'Ashik'
-      password:
-        description: 'Custom Password'
-        required: true
-        type: string
-        default: 'Ashik2006.pc'
 
 jobs:
   rdp-session:
@@ -57,35 +52,47 @@ jobs:
       - name: Configure RDP & User on Windows
         if: runner.os == 'Windows'
         run: |
+          # Generate a random complex password
+          $password = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 20 | ForEach-Object { [char]$_ })
+          echo "GENERATED_PASSWORD=$password" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
-          $securePass = ConvertTo-SecureString "${{ github.event.inputs.password }}" -AsPlainText -Force
-          New-LocalUser -Name "${{ github.event.inputs.username }}" -Password $securePass
+          
+          $securePass = ConvertTo-SecureString "$password" -AsPlainText -Force
+          New-LocalUser -Name "${{ github.event.inputs.username }}" -Password $securePass -FullName "${{ github.event.inputs.username }}"
           Add-LocalGroupMember -Group "Administrators" -Member "${{ github.event.inputs.username }}"
+        shell: pwsh
 
       # --- Linux (Ubuntu) Setup ---
       - name: Configure RDP & User on Ubuntu
         if: runner.os == 'Linux'
         run: |
+          # Generate a random complex password
+          PASSWORD=$(openssl rand -base64 16)
+          echo "GENERATED_PASSWORD=$PASSWORD" >> $GITHUB_ENV
+          
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-desktop xrdp
           sudo systemctl enable --now xrdp
           sudo ufw allow 3389
+          
           sudo useradd -m -s /bin/bash "${{ github.event.inputs.username }}"
-          echo "${{ github.event.inputs.username }}:${{ github.event.inputs.password }}" | sudo chpasswd
+          echo "${{ github.event.inputs.username }}:$PASSWORD" | sudo chpasswd
           sudo adduser "${{ github.event.inputs.username }}" sudo
 
       # --- macOS Setup ---
       - name: Create User and Enable Remote Management on macOS
         if: runner.os == 'macOS'
         run: |
+          # Generate a random complex password
+          PASSWORD=$(openssl rand -base64 16)
+          echo "GENERATED_PASSWORD=$PASSWORD" >> $GITHUB_ENV
+          
           sudo dscl . -create "/Users/${{ github.event.inputs.username }}"
           sudo dscl . -create "/Users/${{ github.event.inputs.username }}" UserShell /bin/bash
-          sudo dscl . -create "/Users/${{ github.event.inputs.username }}" RealName "${{ github.event.inputs.username }}"
-          sudo dscl . -create "/Users/${{ github.event.inputs.username }}" UniqueID 1001
-          sudo dscl . -create "/Users/${{ github.event.inputs.username }}" PrimaryGroupID 20
-          sudo dscl . -passwd "/Users/${{ github.event.inputs.username }}" "${{ github.event.inputs.password }}"
+          sudo dscl . -passwd "/Users/${{ github.event.inputs.username }}" "$PASSWORD"
           sudo dscl . -append /Groups/admin GroupMembership "${{ github.event.inputs.username }}"
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -users "${{ github.event.inputs.username }}" -privs -all -restart -agent -menu
 
@@ -93,11 +100,11 @@ jobs:
       - name: Setup Ngrok Tunnel
         shell: pwsh
         run: |
+          # (This step remains the same as the previous robust version)
           $region = "${{ github.event.inputs.region }}"
           $authToken = "${{ secrets.NGROK_AUTH_TOKEN }}"
           $ngrokLog = "ngrok.log"
 
-          # --- Download and Extract Ngrok for the correct OS ---
           if ($env:RUNNER_OS -eq "Windows") {
               Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
               Expand-Archive ngrok.zip -DestinationPath .
@@ -112,36 +119,22 @@ jobs:
               $ngrokExe = "./ngrok"
           }
           
-          # --- Start Ngrok in the background and log output ---
-          Write-Host "Starting ngrok tunnel in region '$region'..."
           if ($env:RUNNER_OS -eq "Windows") {
               Start-Process -FilePath $ngrokExe -ArgumentList "tcp", "3389", "--authtoken", $authToken, "--region", $region, "--log", $ngrokLog
           } else {
               ./$ngrokExe tcp 3389 --authtoken $authToken --region $region --log $ngrokLog &
           }
 
-          # --- Wait for ngrok API to be ready (Retry Loop) ---
-          Write-Host "Waiting for ngrok API..."
-          $maxRetries = 20
-          $retryDelay = 3 # seconds
-          $tunnelInfo = $null
+          $maxRetries = 20; $retryDelay = 3; $tunnelInfo = $null
           for ($i=1; $i -le $maxRetries; $i++) {
               try {
                   $tunnelInfo = Invoke-WebRequest -Uri "http://localhost:4040/api/tunnels" -UseBasicParsing | ConvertFrom-Json
-                  if ($tunnelInfo.tunnels.Count -gt 0 -and $tunnelInfo.tunnels[0].public_url) {
-                      Write-Host "Successfully connected to ngrok API."
-                      break
-                  }
-              } catch {
-                  Write-Host "Connection attempt $i failed. Retrying in $retryDelay seconds..."
-                  Start-Sleep -Seconds $retryDelay
-              }
+                  if ($tunnelInfo.tunnels.Count -gt 0 -and $tunnelInfo.tunnels[0].public_url) { break }
+              } catch { Start-Sleep -Seconds $retryDelay }
           }
 
-          # --- Exit if connection failed, otherwise extract RDP info ---
           if (-not $tunnelInfo -or $tunnelInfo.tunnels.Count -eq 0) {
-              Write-Error "Failed to get ngrok tunnel info after $maxRetries retries."
-              Write-Host "Dumping ngrok log for debugging:"
+              Write-Error "Failed to get ngrok tunnel info."
               Get-Content $ngrokLog
               exit 1
           }
@@ -150,7 +143,6 @@ jobs:
           $rdpAddress = ($publicUrl -split '//')[1].Split(':')[0]
           $rdpPort = ($publicUrl -split ':')[-1]
           
-          Write-Host "Successfully retrieved RDP info: Address=$rdpAddress, Port=$rdpPort"
           "RDP_ADDRESS=$rdpAddress" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "RDP_PORT=$rdpPort" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
@@ -163,7 +155,7 @@ jobs:
           echo "Address: ${{ env.RDP_ADDRESS }}"
           echo "Port: ${{ env.RDP_PORT }}"
           echo "Username: ${{ github.event.inputs.username }}"
-          echo "Password: ${{ github.event.inputs.password }}"
+          echo "Password: ${{ env.GENERATED_PASSWORD }}"
           echo "=========================================="
           echo "In your Remote Desktop client, use:"
           echo "Computer: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
