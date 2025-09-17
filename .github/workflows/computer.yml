@@ -1,105 +1,126 @@
-name: Fast RDP (Customizable)
+name: Remote Computers
 
 on:
   workflow_dispatch:
     inputs:
-      region:
-        description: 'Select ngrok region'
+      os:
+        description: 'Select Operating System'
         required: true
-        default: 'in'
         type: choice
         options:
-          - us
-          - eu
-          - ap
-          - au
-          - sa
-          - jp
-          - in
-      os_type:
-        description: 'Select Windows OS'
-        required: true
+        - windows-latest
+        - ubuntu-latest
+        - macos-latest
         default: 'windows-latest'
-        type: choice
-        options:
-          - windows-latest
-          - windows-2022
-          - windows-2019
+      region:
+        description: 'Ngrok Tunnel Region (e.g., us, eu, ap, au, sa, jp, in)'
+        required: true
+        type: string
+        default: 'in'
+      timeout:
+        description: 'Session Timeout (minutes)'
+        required: true
+        type: number
+        default: 3600
+      username:
+        description: 'Custom Username'
+        required: true
+        type: string
+        default: 'Ashik'
+      password:
+        description: 'Custom Password'
+        required: true
+        type: string
+        default: 'Ashik2006.pc'
 
 jobs:
-  fast-rdp:
-    runs-on: ${{ github.event.inputs.os_type }}
-    timeout-minutes: 3600
+  rdp-session:
+    runs-on: ${{ github.event.inputs.os }}
+    timeout-minutes: ${{ github.event.inputs.timeout }}
 
     steps:
-      - name: Configure RDP
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # --- Windows Setup ---
+      - name: Configure RDP on Windows
+        if: runner.os == 'Windows'
         run: |
-          # Enable RDP
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
           netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
 
-      - name: Create User with Custom Credentials
+      - name: Create User on Windows
+        if: runner.os == 'Windows'
         run: |
-          # Create user with fixed credentials
-          $securePass = ConvertTo-SecureString "Ashik2006" -AsPlainText -Force
-          New-LocalUser -Name "Ashik" -Password $securePass -AccountNeverExpires -ErrorAction SilentlyContinue
-          Add-LocalGroupMember -Group "Administrators" -Member "Ashik" -ErrorAction SilentlyContinue
-          Set-LocalUser -Name "Ashik" -Password $securePass -ErrorAction SilentlyContinue
+          $securePass = ConvertTo-SecureString "${{ github.event.inputs.password }}" -AsPlainText -Force
+          New-LocalUser -Name "${{ github.event.inputs.username }}" -Password $securePass -AccountNeverExpires
+          Add-LocalGroupMember -Group "Administrators" -Member "${{ github.event.inputs.username }}"
 
-      - name: Setup Ngrok (Fast TCP Tunnel)
+      # --- Linux (Ubuntu) Setup ---
+      - name: Configure Desktop and RDP on Ubuntu
+        if: runner.os == 'Linux'
         run: |
-          # Download ngrok
-          Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile "$env:TEMP\ngrok.zip"
-          Expand-Archive -Path "$env:TEMP\ngrok.zip" -DestinationPath "$env:TEMP\ngrok" -Force
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-desktop xrdp
+          sudo systemctl enable --now xrdp
+          sudo ufw allow 3389
+
+      - name: Create User on Ubuntu
+        if: runner.os == 'Linux'
+        run: |
+          sudo useradd -m -s /bin/bash ${{ github.event.inputs.username }}
+          echo "${{ github.event.inputs.username }}:${{ github.event.inputs.password }}" | sudo chpasswd
+          sudo adduser ${{ github.event.inputs.username }} sudo
+
+      # --- Ngrok Tunneling (Cross-Platform) ---
+      - name: Setup Ngrok Tunnel
+        run: |
+          # Download and start ngrok for the specific OS
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile "$env:TEMP\ngrok.zip"
+            Expand-Archive -Path "$env:TEMP\ngrok.zip" -DestinationPath "$env:TEMP\ngrok" -Force
+            Start-Process -FilePath "$env:TEMP\ngrok\ngrok.exe" -ArgumentList "tcp", "3389", "--authtoken", "${{ secrets.NGROK_AUTH_TOKEN }}", "--region", "${{ github.event.inputs.region }}" -WindowStyle Hidden
+          elif [ "$RUNNER_OS" == "Linux" ]; then
+            curl -s https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | sudo tar -C /usr/local/bin -xz
+            ngrok tcp 3389 --authtoken "${{ secrets.NGROK_AUTH_TOKEN }}" --region "${{ github.event.inputs.region }}" &> /dev/null &
+          fi
           
-          # Start ngrok tunnel with selected region
-          $region = "${{ github.event.inputs.region }}"
-          Start-Process -FilePath "$env:TEMP\ngrok\ngrok.exe" -ArgumentList "tcp", "3389", "--authtoken", "${{ secrets.NGROK_AUTH_TOKEN }}", "--region", $region -WindowStyle Hidden
-          Start-Sleep -Seconds 5
+          sleep 8
           
-          # Get the public URL
-          try {
-            $tunnelInfo = (Invoke-WebRequest -Uri "http://localhost:4040/api/tunnels" -UseBasicParsing).Content | ConvertFrom-Json
-            $publicUrl = $tunnelInfo.tunnels[0].public_url
-            $rdpAddress = $publicUrl -replace "tcp://", "" -replace ":\d+", ""
-            $rdpPort = $publicUrl -replace ".*:", ""
-            
-            echo "RDP_ADDRESS=$rdpAddress" >> $env:GITHUB_ENV
-            echo "RDP_PORT=$rdpPort" >> $env:GITHUB_ENV
-            Write-Host "Ngrok Tunnel Established: $publicUrl"
-          } catch {
-            Write-Host "Failed to get tunnel information. Retrying..."
-            Start-Sleep -Seconds 5
-            $tunnelInfo = (Invoke-WebRequest -Uri "http://localhost:4040/api/tunnels" -UseBasicParsing).Content | ConvertFrom-Json
-            $publicUrl = $tunnelInfo.tunnels[0].public_url
-            $rdpAddress = $publicUrl -replace "tcp://", "" -replace ":\d+", ""
-            $rdpPort = $publicUrl -replace ".*:", ""
-            
-            echo "RDP_ADDRESS=$rdpAddress" >> $env:GITHUB_ENV
-            echo "RDP_PORT=$rdpPort" >> $env:GITHUB_ENV
-            Write-Host "Ngrok Tunnel Established: $publicUrl"
-          }
+          # Get the public URL and set environment variables
+          $tunnelInfo = (Invoke-WebRequest -Uri "http://localhost:4040/api/tunnels" -UseBasicParsing).Content | ConvertFrom-Json
+          $publicUrl = $tunnelInfo.tunnels[0].public_url
+          $rdpAddress = $publicUrl -replace "tcp://", "" -replace ":\d+", ""
+          $rdpPort = $publicUrl -replace ".*:", ""
+          
+          echo "RDP_ADDRESS=$rdpAddress" >> $env:GITHUB_ENV
+          echo "RDP_PORT=$rdpPort" >> $env:GITHUB_ENV
+          Write-Host "Ngrok Tunnel Established: $publicUrl"
+        shell: pwsh
 
-      - name: Display Connection Info
+      # --- Display Connection Info ---
+      - name: Display Connection Details
         run: |
-          Write-Host "`n🎯 **ULTRA-FAST RDP CONNECTION**"
-          Write-Host "=========================================="
-          Write-Host "Address: $env:RDP_ADDRESS"
-          Write-Host "Port: $env:RDP_PORT"
-          Write-Host "Username: Ashik"
-          Write-Host "Password: Ashik2006"
-          Write-Host "Region: ${{ github.event.inputs.region }}"
-          Write-Host "OS: ${{ github.event.inputs.os_type }}"
-          Write-Host "=========================================="
-          Write-Host "`nIn Remote Desktop Connection:"
-          Write-Host "Computer: $env:RDP_ADDRESS:$env:RDP_PORT"
-          Write-Host "==========================================`n"
-
-      - name: Maintain Connection
+          echo "🎯 RDP CONNECTION DETAILS 🎯"
+          echo "=========================================="
+          echo "OS: ${{ github.event.inputs.os }}"
+          echo "Address: ${{ env.RDP_ADDRESS }}"
+          echo "Port: ${{ env.RDP_PORT }}"
+          echo "Username: ${{ github.event.inputs.username }}"
+          echo "Password: ${{ github.event.inputs.password }}"
+          echo "=========================================="
+          echo "In your Remote Desktop client, use:"
+          echo "Computer: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
+          echo "=========================================="
+        shell: bash
+        
+      # --- Maintain Connection ---
+      - name: Keep Workflow Alive
         run: |
           while ($true) {
-              Write-Host "[$(Get-Date)] RDP Ready - Connect to: $env:RDP_ADDRESS:$env:RDP_PORT"
+              Write-Host "[$(Get-Date)] RDP Ready - Connect to: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
               Start-Sleep -Seconds 60
           }
+        shell: pwsh
