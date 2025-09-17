@@ -51,8 +51,8 @@ jobs:
       # --- Windows Setup ---
       - name: Configure RDP & User on Windows
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          # Generate a random complex password
           $password = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 20 | ForEach-Object { [char]$_ })
           echo "GENERATED_PASSWORD=$password" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           
@@ -63,44 +63,36 @@ jobs:
           $securePass = ConvertTo-SecureString "$password" -AsPlainText -Force
           New-LocalUser -Name "${{ github.event.inputs.username }}" -Password $securePass -FullName "${{ github.event.inputs.username }}"
           Add-LocalGroupMember -Group "Administrators" -Member "${{ github.event.inputs.username }}"
-        shell: pwsh
 
       # --- Linux (Ubuntu) Setup ---
       - name: Configure RDP & User on Ubuntu
         if: runner.os == 'Linux'
         run: |
-          # Generate a random complex password
           PASSWORD=$(openssl rand -base64 16)
           echo "GENERATED_PASSWORD=$PASSWORD" >> $GITHUB_ENV
-          
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-desktop xrdp
           sudo systemctl enable --now xrdp
           sudo ufw allow 3389
-          
           sudo useradd -m -s /bin/bash "${{ github.event.inputs.username }}"
           echo "${{ github.event.inputs.username }}:$PASSWORD" | sudo chpasswd
           sudo adduser "${{ github.event.inputs.username }}" sudo
 
       # --- macOS Setup ---
-      - name: Create User and Enable Remote Management on macOS
+      - name: Create User & Enable Remote Management on macOS
         if: runner.os == 'macOS'
         run: |
-          # Generate a random complex password
           PASSWORD=$(openssl rand -base64 16)
           echo "GENERATED_PASSWORD=$PASSWORD" >> $GITHUB_ENV
-          
           sudo dscl . -create "/Users/${{ github.event.inputs.username }}"
-          sudo dscl . -create "/Users/${{ github.event.inputs.username }}" UserShell /bin/bash
           sudo dscl . -passwd "/Users/${{ github.event.inputs.username }}" "$PASSWORD"
           sudo dscl . -append /Groups/admin GroupMembership "${{ github.event.inputs.username }}"
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -users "${{ github.event.inputs.username }}" -privs -all -restart -agent -menu
 
-      # --- Ngrok Tunneling (Robust and Cross-Platform) ---
+      # --- Ngrok Tunneling (Final Version) ---
       - name: Setup Ngrok Tunnel
         shell: pwsh
         run: |
-          # (This step remains the same as the previous robust version)
           $region = "${{ github.event.inputs.region }}"
           $authToken = "${{ secrets.NGROK_AUTH_TOKEN }}"
           $ngrokLog = "ngrok.log"
@@ -119,22 +111,33 @@ jobs:
               $ngrokExe = "./ngrok"
           }
           
+          # --- KEY FIX: Add execute permissions on Linux/macOS ---
+          if ($env:RUNNER_OS -ne "Windows") {
+              chmod +x $ngrokExe
+          }
+          
+          Write-Host "Starting ngrok tunnel..."
           if ($env:RUNNER_OS -eq "Windows") {
               Start-Process -FilePath $ngrokExe -ArgumentList "tcp", "3389", "--authtoken", $authToken, "--region", $region, "--log", $ngrokLog
           } else {
               ./$ngrokExe tcp 3389 --authtoken $authToken --region $region --log $ngrokLog &
           }
 
+          Write-Host "Waiting for ngrok API..."
           $maxRetries = 20; $retryDelay = 3; $tunnelInfo = $null
           for ($i=1; $i -le $maxRetries; $i++) {
               try {
                   $tunnelInfo = Invoke-WebRequest -Uri "http://localhost:4040/api/tunnels" -UseBasicParsing | ConvertFrom-Json
                   if ($tunnelInfo.tunnels.Count -gt 0 -and $tunnelInfo.tunnels[0].public_url) { break }
-              } catch { Start-Sleep -Seconds $retryDelay }
+              } catch { 
+                  Write-Host "Connection attempt $i failed. Retrying..."
+                  Start-Sleep -Seconds $retryDelay 
+              }
           }
 
           if (-not $tunnelInfo -or $tunnelInfo.tunnels.Count -eq 0) {
               Write-Error "Failed to get ngrok tunnel info."
+              Write-Host "Dumping ngrok log for debugging:"
               Get-Content $ngrokLog
               exit 1
           }
@@ -152,13 +155,9 @@ jobs:
           echo "🎯 RDP CONNECTION DETAILS 🎯"
           echo "=========================================="
           echo "OS: ${{ github.event.inputs.os }}"
-          echo "Address: ${{ env.RDP_ADDRESS }}"
-          echo "Port: ${{ env.RDP_PORT }}"
+          echo "Computer: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
           echo "Username: ${{ github.event.inputs.username }}"
           echo "Password: ${{ env.GENERATED_PASSWORD }}"
-          echo "=========================================="
-          echo "In your Remote Desktop client, use:"
-          echo "Computer: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
           echo "=========================================="
         shell: bash
         
@@ -166,7 +165,7 @@ jobs:
       - name: Keep Workflow Alive
         run: |
           while ($true) {
-              Write-Host "[$(Get-Date)] RDP Ready - Connect to: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
+              Write-Host "[$(Get-Date)] RDP Ready. Connection details above."
               Start-Sleep -Seconds 60
           }
         shell: pwsh
