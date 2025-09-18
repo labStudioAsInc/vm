@@ -186,24 +186,22 @@ jobs:
         shell: bash
 
       # --- Maintain Connection ---
-      - name: Keep Workflow Alive
-        run: |
-          echo "Remote desktop session is now active!"
-          echo "The workflow will remain running for ${{ github.event.inputs.timeout }} minutes."
-          echo "Press Ctrl+C in the workflow logs to terminate the session early."
-          
-          # Different keep-alive approaches per OS
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            # Windows
-            while ($true) {
-              Write-Host "[$(Get-Date)] Session active - Address: $env:RDP_ADDRESS:$env:RDP_PORT"
-              Start-Sleep -Seconds 60
-            }
-          else
-            # Linux/macOS
-            while true; do
-              echo "[$(date)] Session active - Address: $RDP_ADDRESS:$RDP_PORT"
-              sleep 60
-            done
-          fi
-        shell: bash
+      # --- Maintain Connection (Windows) ---
+- name: Keep Workflow Alive - Windows
+  if: runner.os == 'Windows'
+  run: |
+    while ($true) {
+      Write-Host "[$(Get-Date)] Session active - Address: $env:RDP_ADDRESS:$env:RDP_PORT"
+      Start-Sleep -Seconds 60
+    }
+  shell: pwsh
+
+# --- Maintain Connection (Linux/macOS) ---
+- name: Keep Workflow Alive - Linux/macOS
+  if: runner.os == 'Linux' || runner.os == 'macOS'
+  run: |
+    while true; do
+      echo "[$(date)] Session active - Address: $RDP_ADDRESS:$RDP_PORT"
+      sleep 60
+    done
+  shell: bash
