@@ -1,4 +1,4 @@
-name: Remote Desktop with Optional Google Drive Sync
+name: Multi OS VMs
 
 on:
   workflow_dispatch:
