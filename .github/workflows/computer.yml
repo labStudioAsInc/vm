@@ -154,6 +154,30 @@ jobs:
           New-LocalUser -Name "${{ github.event.inputs.username }}" -Password $securePass -FullName "${{ github.event.inputs.username }}"
           Add-LocalGroupMember -Group "Administrators" -Member "${{ github.event.inputs.username }}"
 
+      # --- NEW STEP: Install Virtual Sound Card and Enable Audio for Windows ---
+      - name: Install Virtual Sound Card and Enable Audio
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          echo "Installing VB-CABLE Virtual Audio Device..."
+          Invoke-WebRequest -Uri 'https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack43.zip' -OutFile 'vb-cable.zip'
+          Expand-Archive -Path 'vb-cable.zip' -DestinationPath 'vb-cable'
+          cd 'vb-cable\VBCABLE_Driver_Pack43'
+          # Use PnP utility to install the driver, which is more reliable in automation
+          pnputil /add-driver VBCABLE_Setup_x64.exe /install
+          cd ..
+          cd ..
+          
+          echo "Enabling Windows Audio Services..."
+          Set-Service -Name Audiosrv -StartupType Automatic -PassThru | Start-Service
+          Set-Service -Name AudioEndpointBuilder -StartupType Automatic -PassThru | Start-Service
+          
+          echo "Configuring Group Policy for RDP Audio Redirection..."
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name "fEnableAudioCapture" -Value 1 -Type DWord -Force
+          Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "fDisableAudioCapture" -Value 0 -Type DWord -Force
+          
+          echo "Audio setup is complete."
+
       # --- Linux (Ubuntu) Setup ---
       - name: Configure RDP & User on Ubuntu
         if: runner.os == 'Linux'
@@ -380,4 +404,4 @@ jobs:
             $GDRIVE_CMD --service-account "${{ env.GDRIVE_CREDENTIALS }}" upload --name "${{ github.event.inputs.username }}-backup-$(date +%Y%m%d-%H%M%S).tar.gz" "$BACKUP_FILE"
           fi
           
-          echo "Final backup completed successfully!"
+          echo "Final backup completed successfully!"```
