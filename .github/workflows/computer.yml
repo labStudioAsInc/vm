@@ -159,14 +159,9 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          echo "Installing VB-CABLE Virtual Audio Device..."
-          Invoke-WebRequest -Uri 'https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack43.zip' -OutFile 'vb-cable.zip'
-          Expand-Archive -Path 'vb-cable.zip' -DestinationPath 'vb-cable'
-          cd 'vb-cable\VBCABLE_Driver_Pack43'
-          # Use PnP utility to install the driver, which is more reliable in automation
-          pnputil /add-driver VBCABLE_Setup_x64.exe /install
-          cd ..
-          cd ..
+          echo "Installing VB-CABLE Virtual Audio Device using Chocolatey..."
+          # Using --force to ensure installation even if a previous attempt failed or package exists
+          choco install vb-cable -y --force
           
           echo "Enabling Windows Audio Services..."
           Set-Service -Name Audiosrv -StartupType Automatic -PassThru | Start-Service
@@ -404,4 +399,4 @@ jobs:
             $GDRIVE_CMD --service-account "${{ env.GDRIVE_CREDENTIALS }}" upload --name "${{ github.event.inputs.username }}-backup-$(date +%Y%m%d-%H%M%S).tar.gz" "$BACKUP_FILE"
           fi
           
-          echo "Final backup completed successfully!"```
+          echo "Final backup completed successfully!"
