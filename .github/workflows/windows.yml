@@ -1,0 +1,215 @@
+name: Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: 'Select Windows Version'
+        required: true
+        type: choice
+        options:
+        - windows-latest # This is currently Windows Server 2022
+        - windows-2022
+        - windows-2019
+        default: 'windows-latest'
+      runner_type:
+        description: 'Select Runner Type'
+        required: true
+        type: choice
+        options:
+        - github-hosted
+        - self-hosted
+        default: 'github-hosted'
+      region:
+        description: 'Select Ngrok Tunnel Region'
+        required: true
+        type: choice
+        options:
+        - "us"
+        - "eu"
+        - "ap"
+        - "au"
+        - "sa"
+        - "jp"
+        - "in"
+        default: 'in'
+      timeout:
+        description: 'Session Timeout (minutes, max 360 for hosted)'
+        required: true
+        type: string
+        default: '360'
+      username:
+        description: 'Custom Username'
+        required: true
+        type: string
+        default: 'Ashik'
+      backup_enabled:
+        description: 'Enable Google Drive Backup'
+        required: true
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+        default: 'false'
+
+env:
+  BACKUP_DIR: "C:/Users/runneradmin/cloud-backup" # Windows-specific path
+  SYNC_DIR: "C:/Users/runneradmin/persistent-data" # Windows-specific path
+  GDRIVE_CREDENTIALS: "service_account.json"
+
+jobs:
+  rdp-session:
+    # Dynamically set the runner based on user input
+    runs-on: ${{ github.event.inputs.runner_type == 'github-hosted' && github.event.inputs.os || fromJSON('["self-hosted", "windows"]') }}
+    timeout-minutes: ${{ fromJSON(github.event.inputs.timeout) }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Create persistent directories
+        shell: pwsh
+        run: |
+          mkdir -p "${{ env.BACKUP_DIR }}"
+          mkdir -p "${{ env.SYNC_DIR }}"
+          echo "Persistent directories created"
+
+      - name: Install Google Drive CLI (rclone)
+        if: github.event.inputs.backup_enabled == 'true'
+        shell: pwsh
+        run: |
+          echo "Installing rclone for Google Drive..."
+          choco install rclone -y
+          echo "rclone installed successfully"
+
+      - name: Setup Google Drive authentication
+        if: github.event.inputs.backup_enabled == 'true'
+        shell: pwsh
+        run: |
+          echo "${{ secrets.GDRIVE_SERVICE_ACCOUNT_KEY }}" > "${{ env.GDRIVE_CREDENTIALS }}"
+          echo "Google Drive authentication configured"
+
+      - name: Restore data from Google Drive
+        if: github.event.inputs.backup_enabled == 'true'
+        shell: pwsh
+        run: |
+          echo "Checking for existing backups..."
+          # This command will list files and proceed even if none are found
+          rclone lsjson drive: --gdrive-service-account-file "${{ env.GDRIVE_CREDENTIALS }}" | Select-String "${{ github.event.inputs.username }}-backup"
+          # Add actual restore logic here if needed, for now it just checks
+
+      - name: Configure RDP & User
+        shell: pwsh
+        run: |
+          $password = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 20 | ForEach-Object { [char]$_ })
+          echo "GENERATED_PASSWORD=$password" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+          netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
+          Restart-Service -Name TermService -Force
+          $securePass = ConvertTo-SecureString "$password" -AsPlainText -Force
+          New-LocalUser -Name "${{ github.event.inputs.username }}" -Password $securePass -FullName "${{ github.event.inputs.username }}"
+          Add-LocalGroupMember -Group "Administrators" -Member "${{ github.event.inputs.username }}"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "${{ github.event.inputs.username }}"
+
+      - name: Install Virtual Sound Card and Enable Audio
+        shell: pwsh
+        run: |
+          echo "Installing VB-CABLE Virtual Audio Device using Chocolatey..."
+          choco install vb-cable -y --force
+          
+          echo "Enabling Windows Audio Services..."
+          Set-Service -Name Audiosrv -StartupType Automatic -PassThru | Start-Service
+          Set-Service -Name AudioEndpointBuilder -StartupType Automatic -PassThru | Start-Service
+          
+          echo "Configuring Group Policy for RDP Audio Redirection..."
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name "fEnableAudioCapture" -Value 1 -Type DWord -Force
+          Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "fDisableAudioCapture" -Value 0 -Type DWord -Force
+          
+          echo "Audio setup is complete."
+
+      - name: Install jq for JSON parsing
+        shell: pwsh
+        run: |
+          choco install jq -y
+
+      - name: Setup Ngrok Tunnel
+        shell: pwsh
+        run: |
+          $REGION = "${{ github.event.inputs.region }}"
+          $AUTH_TOKEN = "${{ secrets.NGROK_AUTH_TOKEN }}"
+          $NGROK_LOG = "ngrok.log"
+          $CONFIG_FILE = "ngrok.yml"
+          $PORT = "3389"
+
+          # Create ngrok configuration file
+          "version: ""2""`nauthtoken: $AUTH_TOKEN`nregion: $REGION" | Set-Content $CONFIG_FILE
+
+          echo "Installing ngrok..."
+          choco install ngrok -y
+
+          echo "Starting ngrok tunnel on port $PORT..."
+          Start-Process -NoNewWindow -FilePath 'ngrok.exe' -ArgumentList "tcp $PORT --config $CONFIG_FILE --log $NGROK_LOG"
+
+          echo "Waiting for ngrok to start..."
+          Start-Sleep -Seconds 15
+          
+          $TUNNEL_URL = ""
+          foreach ($i in 1..5) {
+            $TUNNEL_URL = (Invoke-RestMethod -Uri http://localhost:4040/api/tunnels).tunnels[0].public_url
+            if ($TUNNEL_URL) {
+              break
+            }
+            echo "Attempt $i: Tunnel not ready yet, waiting..."
+            Start-Sleep -Seconds 5
+          }
+
+          if (-not $TUNNEL_URL) {
+            echo "::error::Failed to get ngrok tunnel info after multiple attempts."
+            Get-Content $NGROK_LOG -ErrorAction SilentlyContinue
+            exit 1
+          }
+
+          $RDP_ADDRESS = $TUNNEL_URL.Replace("tcp://", "").Split(":")[0]
+          $RDP_PORT = $TUNNEL_URL.Replace("tcp://", "").Split(":")[1]
+          echo "RDP_ADDRESS=$RDP_ADDRESS" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "RDP_PORT=$RDP_PORT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "Tunnel established successfully: $TUNNEL_URL"
+
+      - name: Display Connection Details
+        shell: pwsh
+        run: |
+          echo "🎯 CONNECTION DETAILS 🎯"
+          echo "=========================================="
+          echo "OS: ${{ github.event.inputs.os }}"
+          echo "Protocol: RDP (Use Remote Desktop Connection)"
+          echo "Address: ${{ env.RDP_ADDRESS }}"
+          echo "Port: ${{ env.RDP_PORT }}"
+          echo "Username: ${{ github.event.inputs.username }}"
+          echo "Password: ${{ env.GENERATED_PASSWORD }}"
+          echo "Google Drive Backup: ${{ github.event.inputs.backup_enabled }}"
+          echo "=========================================="
+          echo "Connection string: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
+
+      - name: Keep Workflow Alive with Periodic Backup
+        shell: pwsh
+        run: |
+          $Timeout = ${{ fromJSON(github.event.inputs.timeout) }} * 60
+          $StartTime = Get-Date
+
+          while ((Get-Date - $StartTime).TotalSeconds -lt $Timeout) {
+            echo "[$(Get-Date)] Session active - Address: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
+            Start-Sleep -Seconds 60
+          }
+          echo "Session timeout reached."
+
+      - name: Final Backup
+        if: always() && github.event.inputs.backup_enabled == 'true'
+        shell: pwsh
+        run: |
+          echo "Performing final backup..."
+          $BACKUP_FILE = "$($env:BACKUP_DIR)/backup-$(Get-Date -Format 'yyyyMMdd-HHmmss').zip"
+          Compress-Archive -Path "${{ env.SYNC_DIR }}\*" -DestinationPath $BACKUP_FILE
+          
+          rclone copy $BACKUP_FILE drive: --gdrive-service-account-file "${{ env.GDRIVE_CREDENTIALS }}"
+          
+          echo "Final backup completed successfully!"
