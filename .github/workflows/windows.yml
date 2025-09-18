@@ -1,25 +1,8 @@
-name: Windows
+name: Windows RDP Setup
 
 on:
   workflow_dispatch:
     inputs:
-      os:
-        description: 'Select Windows Version'
-        required: true
-        type: choice
-        options:
-        - windows-latest # This is currently Windows Server 2022
-        - windows-2022
-        - windows-2019
-        default: 'windows-latest'
-      runner_type:
-        description: 'Select Runner Type'
-        required: true
-        type: choice
-        options:
-        - github-hosted
-        - self-hosted
-        default: 'github-hosted'
       region:
         description: 'Select Ngrok Tunnel Region'
         required: true
@@ -34,83 +17,45 @@ on:
         - "in"
         default: 'in'
       timeout:
-        description: 'Session Timeout (minutes, max 360 for hosted)'
+        description: 'Session Timeout (minutes, max 360)'
         required: true
         type: string
         default: '360'
-      username:
-        description: 'Custom Username'
-        required: true
-        type: string
-        default: 'Ashik'
-      backup_enabled:
-        description: 'Enable Google Drive Backup'
-        required: true
-        type: choice
-        options:
-        - 'true'
-        - 'false'
-        default: 'false'
 
 env:
-  BACKUP_DIR: "C:/Users/runneradmin/cloud-backup" # Windows-specific path
-  SYNC_DIR: "C:/Users/runneradmin/persistent-data" # Windows-specific path
-  GDRIVE_CREDENTIALS: "service_account.json"
+  USERNAME: "Ashik"
+  PASSWORD: "AshiksBeastServer2006"
+  PC_NAME: "Ashik-PC"  # Using hyphen instead of space
 
 jobs:
   rdp-session:
-    # Dynamically set the runner based on user input
-    runs-on: ${{ github.event.inputs.runner_type == 'github-hosted' && github.event.inputs.os || fromJSON('["self-hosted", "windows"]') }}
+    runs-on: windows-latest
     timeout-minutes: ${{ fromJSON(github.event.inputs.timeout) }}
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Create persistent directories
-        shell: pwsh
-        run: |
-          mkdir -p "${{ env.BACKUP_DIR }}"
-          mkdir -p "${{ env.SYNC_DIR }}"
-          echo "Persistent directories created"
-
-      - name: Install Google Drive CLI (rclone)
-        if: github.event.inputs.backup_enabled == 'true'
-        shell: pwsh
-        run: |
-          echo "Installing rclone for Google Drive..."
-          choco install rclone -y
-          echo "rclone installed successfully"
-
-      - name: Setup Google Drive authentication
-        if: github.event.inputs.backup_enabled == 'true'
-        shell: pwsh
-        run: |
-          echo "${{ secrets.GDRIVE_SERVICE_ACCOUNT_KEY }}" > "${{ env.GDRIVE_CREDENTIALS }}"
-          echo "Google Drive authentication configured"
-
-      - name: Restore data from Google Drive
-        if: github.event.inputs.backup_enabled == 'true'
-        shell: pwsh
-        run: |
-          echo "Checking for existing backups..."
-          # This command will list files and proceed even if none are found
-          rclone lsjson drive: --gdrive-service-account-file "${{ env.GDRIVE_CREDENTIALS }}" | Select-String "${{ github.event.inputs.username }}-backup"
-          # Add actual restore logic here if needed, for now it just checks
-
+      # --- Configure RDP & User on Windows ---
       - name: Configure RDP & User
         shell: pwsh
         run: |
-          $password = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 20 | ForEach-Object { [char]$_ })
-          echo "GENERATED_PASSWORD=$password" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          # Enable RDP
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
-          $securePass = ConvertTo-SecureString "$password" -AsPlainText -Force
-          New-LocalUser -Name "${{ github.event.inputs.username }}" -Password $securePass -FullName "${{ github.event.inputs.username }}"
-          Add-LocalGroupMember -Group "Administrators" -Member "${{ github.event.inputs.username }}"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "${{ github.event.inputs.username }}"
+          
+          # Create user with fixed password
+          $securePass = ConvertTo-SecureString "$env:PASSWORD" -AsPlainText -Force
+          New-LocalUser -Name "$env:USERNAME" -Password $securePass -FullName "$env:USERNAME"
+          Add-LocalGroupMember -Group "Administrators" -Member "$env:USERNAME"
+          
+          # Set computer name (remove spaces and special characters)
+          $validName = $env:PC_NAME -replace '[^a-zA-Z0-9-]', '-'
+          Rename-Computer -NewName $validName -Force
+          Write-Host "Computer name set to: $validName"
 
+      # --- Install Virtual Sound Card and Enable Audio ---
       - name: Install Virtual Sound Card and Enable Audio
         shell: pwsh
         run: |
@@ -127,11 +72,98 @@ jobs:
           
           echo "Audio setup is complete."
 
-      - name: Install jq for JSON parsing
+      # --- Install Google Chrome and Set as Default ---
+      - name: Install Google Chrome and Set as Default
         shell: pwsh
         run: |
-          choco install jq -y
+          # Install Chrome using offline installer for reliability
+          $chromeInstaller = "chrome_installer.exe"
+          $downloadUrl = "https://dl.google.com/chrome/install/latest/chrome_installer.exe"
+          
+          # Download Chrome installer
+          try {
+              Invoke-WebRequest -Uri $downloadUrl -OutFile $chromeInstaller -ErrorAction Stop
+              Write-Host "Chrome installer downloaded successfully"
+          } catch {
+              Write-Warning "Failed to download Chrome installer: $($_.Exception.Message)"
+              Write-Host "Trying alternate download method..."
+              # Fallback to using Edge to download Chrome
+              $edgeDownloadScript = @"
+              @echo off
+              start microsoft-edge:https://www.google.com/chrome/
+              timeout /t 10
+              exit
+"@
+              $edgeDownloadScript | Out-File -FilePath "download_chrome.cmd" -Encoding ascii
+              Start-Process -FilePath "download_chrome.cmd" -Wait
+          }
+          
+          # Install Chrome
+          if (Test-Path $chromeInstaller) {
+              Write-Host "Installing Google Chrome..."
+              Start-Process -FilePath $chromeInstaller -ArgumentList "/silent /install" -Wait
+              
+              # Wait for Chrome to be properly installed
+              Start-Sleep -Seconds 30
+              
+              # Set Chrome as default browser using registry
+              $chromePath = "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe"
+              if (Test-Path $chromePath) {
+                  # Set Chrome as default for HTTP and HTTPS
+                  reg add "HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice" /v ProgId /d "ChromeHTML" /f
+                  reg add "HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice" /v ProgId /d "ChromeHTML" /f
+                  Write-Host "Google Chrome set as default browser"
+              } else {
+                  Write-Warning "Chrome installation may have failed, path not found: $chromePath"
+              }
+          } else {
+              Write-Warning "Chrome installer not found, trying direct download from web"
+              # Final fallback - use the standard online installer
+              $webClient = New-Object System.Net.WebClient
+              $webClient.DownloadFile("https://www.google.com/chrome/", "chrome_online_installer.exe")
+              Start-Process -FilePath "chrome_online_installer.exe" -ArgumentList "/silent /install" -Wait
+          }
 
+      # --- Set Custom Wallpaper ---
+      - name: Set Custom Wallpaper
+        shell: pwsh
+        run: |
+          $wallpaperUrl = "https://4kwallpapers.com/images/wallpapers/windows-11-dark-mode-blue-stock-official-3840x2160-5630.jpg"
+          $wallpaperPath = "$env:TEMP\wallpaper.jpg"
+          
+          try {
+            # Download wallpaper
+            Invoke-WebRequest -Uri $wallpaperUrl -OutFile $wallpaperPath -ErrorAction Stop
+            
+            # Set wallpaper using SystemParametersInfo
+            Add-Type -TypeDefinition @"
+            using System;
+            using System.Runtime.InteropServices;
+            public class Wallpaper {
+                [DllImport("user32.dll", CharSet = CharSet.Auto)]
+                public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+            }
+"@
+            [Wallpaper]::SystemParametersInfo(0x0014, 0, $wallpaperPath, 0x01) | Out-Null
+            Write-Host "Wallpaper set successfully"
+          } catch {
+            Write-Warning "Failed to set wallpaper: $($_.Exception.Message)"
+            # Fallback: Use a solid color
+            Write-Host "Using fallback solid color background"
+            Set-ItemProperty -Path 'HKCU:\Control Panel\Colors' -Name Background -Value "0 78 152" -Type String
+          }
+
+      # --- Install jq for JSON parsing ---
+      - name: Install jq
+        shell: pwsh
+        run: |
+          # Create the directory first, then download jq
+          New-Item -ItemType Directory -Force -Path "C:\ProgramData\chocolatey\bin" | Out-Null
+          Invoke-WebRequest -Uri "https://github.com/stedolan/jq/releases/download/jq-1.6/jq-win64.exe" -OutFile "C:\ProgramData\chocolatey\bin\jq.exe"
+          # Add to PATH for current session
+          $env:Path += ";C:\ProgramData\chocolatey\bin"
+
+      # --- Ngrok Tunneling ---
       - name: Setup Ngrok Tunnel
         shell: pwsh
         run: |
@@ -142,74 +174,84 @@ jobs:
           $PORT = "3389"
 
           # Create ngrok configuration file
-          "version: ""2""`nauthtoken: $AUTH_TOKEN`nregion: $REGION" | Set-Content $CONFIG_FILE
+          "version: `"2`"" | Out-File -FilePath $CONFIG_FILE -Encoding ascii
+          "authtoken: $AUTH_TOKEN" | Out-File -FilePath $CONFIG_FILE -Encoding ascii -Append
+          "region: $REGION" | Out-File -FilePath $CONFIG_FILE -Encoding ascii -Append
 
-          echo "Installing ngrok..."
-          choco install ngrok -y
+          Write-Host "Downloading ngrok..."
+          # Manual download for Windows
+          Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
+          Expand-Archive -Path "ngrok.zip" -DestinationPath . -Force
 
-          echo "Starting ngrok tunnel on port $PORT..."
-          Start-Process -NoNewWindow -FilePath 'ngrok.exe' -ArgumentList "tcp $PORT --config $CONFIG_FILE --log $NGROK_LOG"
+          Write-Host "Starting ngrok tunnel on port $PORT..."
+          Start-Process -NoNewWindow -FilePath ".\ngrok.exe" -ArgumentList "tcp $PORT --config $CONFIG_FILE --log $NGROK_LOG"
 
-          echo "Waiting for ngrok to start..."
+          Write-Host "Waiting for ngrok to start..."
           Start-Sleep -Seconds 15
           
-          $TUNNEL_URL = ""
-          foreach ($i in 1..5) {
-            $TUNNEL_URL = (Invoke-RestMethod -Uri http://localhost:4040/api/tunnels).tunnels[0].public_url
-            if ($TUNNEL_URL) {
-              break
-            }
-            echo "Attempt $i: Tunnel not ready yet, waiting..."
-            Start-Sleep -Seconds 5
+          $tunnelUrl = $null
+          $attempts = 0
+          while ($attempts -lt 5 -and -not $tunnelUrl) {
+              try {
+                  $tunnelInfo = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels" -ErrorAction Stop
+                  $tunnelUrl = $tunnelInfo.tunnels[0].public_url
+              } catch {
+                  Write-Host "Attempt $($attempts + 1): Tunnel not ready yet, waiting..."
+                  Start-Sleep -Seconds 5
+              }
+              $attempts++
           }
 
-          if (-not $TUNNEL_URL) {
-            echo "::error::Failed to get ngrok tunnel info after multiple attempts."
-            Get-Content $NGROK_LOG -ErrorAction SilentlyContinue
-            exit 1
+          if (-not $tunnelUrl) {
+              Write-Error "Failed to get ngrok tunnel info after multiple attempts."
+              if (Test-Path $NGROK_LOG) {
+                  Write-Host "Ngrok log content:"
+                  Get-Content $NGROK_LOG
+              } else {
+                  Write-Host "No ngrok log found"
+              }
+              exit 1
           }
 
-          $RDP_ADDRESS = $TUNNEL_URL.Replace("tcp://", "").Split(":")[0]
-          $RDP_PORT = $TUNNEL_URL.Replace("tcp://", "").Split(":")[1]
-          echo "RDP_ADDRESS=$RDP_ADDRESS" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "RDP_PORT=$RDP_PORT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "Tunnel established successfully: $TUNNEL_URL"
+          $tunnelUrl = $tunnelUrl -replace "tcp://", ""
+          $tunnelParts = $tunnelUrl -split ":"
+          $RDP_ADDRESS = $tunnelParts[0]
+          $RDP_PORT = $tunnelParts[1]
+          
+          "RDP_ADDRESS=$RDP_ADDRESS" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "RDP_PORT=$RDP_PORT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Tunnel established successfully: $tunnelUrl"
 
+      # --- Display Connection Info ---
       - name: Display Connection Details
         shell: pwsh
         run: |
-          echo "🎯 CONNECTION DETAILS 🎯"
-          echo "=========================================="
-          echo "OS: ${{ github.event.inputs.os }}"
-          echo "Protocol: RDP (Use Remote Desktop Connection)"
-          echo "Address: ${{ env.RDP_ADDRESS }}"
-          echo "Port: ${{ env.RDP_PORT }}"
-          echo "Username: ${{ github.event.inputs.username }}"
-          echo "Password: ${{ env.GENERATED_PASSWORD }}"
-          echo "Google Drive Backup: ${{ github.event.inputs.backup_enabled }}"
-          echo "=========================================="
-          echo "Connection string: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
+          Write-Host "🎯 CONNECTION DETAILS 🎯"
+          Write-Host "=========================================="
+          Write-Host "OS: Windows"
+          Write-Host "Protocol: RDP (Use Remote Desktop Connection)"
+          Write-Host "Port: 3389"
+          Write-Host "Address: $env:RDP_ADDRESS"
+          Write-Host "Port: $env:RDP_PORT"
+          Write-Host "Username: $env:USERNAME"
+          Write-Host "Password: $env:PASSWORD"
+          Write-Host "PC Name: $env:PC_NAME"
+          Write-Host "Default Browser: Google Chrome"
+          Write-Host "=========================================="
+          Write-Host "Connection string: $env:RDP_ADDRESS`:$env:RDP_PORT"
 
-      - name: Keep Workflow Alive with Periodic Backup
+      # --- Keep Alive ---
+      - name: Keep Workflow Alive
         shell: pwsh
         run: |
-          $Timeout = ${{ fromJSON(github.event.inputs.timeout) }} * 60
-          $StartTime = Get-Date
+          Write-Host "Remote desktop session is now active!"
+          Write-Host "The workflow will remain running for ${{ github.event.inputs.timeout }} minutes."
+          Write-Host "Press Ctrl+C in the workflow logs to terminate the session early."
 
-          while ((Get-Date - $StartTime).TotalSeconds -lt $Timeout) {
-            echo "[$(Get-Date)] Session active - Address: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
-            Start-Sleep -Seconds 60
+          # Main loop to keep the workflow running
+          $count = 0
+          while ($true) {
+              Write-Host "[$(Get-Date)] Session active - Address: $env:RDP_ADDRESS`:$env:RDP_PORT"
+              Start-Sleep -Seconds 60
+              $count++
           }
-          echo "Session timeout reached."
-
-      - name: Final Backup
-        if: always() && github.event.inputs.backup_enabled == 'true'
-        shell: pwsh
-        run: |
-          echo "Performing final backup..."
-          $BACKUP_FILE = "$($env:BACKUP_DIR)/backup-$(Get-Date -Format 'yyyyMMdd-HHmmss').zip"
-          Compress-Archive -Path "${{ env.SYNC_DIR }}\*" -DestinationPath $BACKUP_FILE
-          
-          rclone copy $BACKUP_FILE drive: --gdrive-service-account-file "${{ env.GDRIVE_CREDENTIALS }}"
-          
-          echo "Final backup completed successfully!"
