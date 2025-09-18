@@ -8,14 +8,14 @@ on:
         required: true
         type: choice
         options:
-        - "us"
-        - "eu"
-        - "ap"
-        - "au"
-        - "sa"
-        - "jp"
-        - "in"
-        default: 'in'
+        - us
+        - eu
+        - ap
+        - au
+        - sa
+        - jp
+        - in
+        default: in
       timeout:
         description: 'Session Timeout (minutes, max 360)'
         required: true
@@ -23,9 +23,9 @@ on:
         default: '360'
 
 env:
-  USERNAME: "Ashik"
-  PASSWORD: "Ashik@Secure123!"  # Stronger password with special characters
-  PC_NAME: "Ashik-PC"
+  USERNAME: Ashik
+  PASSWORD: Ashik@Secure123!
+  PC_NAME: Ashik-PC
 
 jobs:
   rdp-session:
@@ -90,9 +90,9 @@ jobs:
               Write-Warning "Failed to download Chrome installer: $($_.Exception.Message)"
               Write-Host "Trying alternate download method..."
               
-              # Create batch script without @echo off to avoid YAML issues
-              $batchContent = 'start microsoft-edge:https://www.google.com/chrome/'
-              $batchContent | Out-File -FilePath "download_chrome.ps1" -Encoding ascii
+              # Create PowerShell script to open Edge
+              $psContent = 'Start-Process "microsoft-edge:https://www.google.com/chrome/"'
+              $psContent | Out-File -FilePath "download_chrome.ps1" -Encoding ascii
               Start-Process -FilePath "powershell" -ArgumentList "-File download_chrome.ps1" -Wait
               Start-Sleep -Seconds 10
           }
