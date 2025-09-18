@@ -161,12 +161,17 @@ jobs:
           PASSWORD=$(openssl rand -base64 16)
           echo "GENERATED_PASSWORD=$PASSWORD" >> $GITHUB_ENV
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-desktop xrdp
+          # Install a lightweight desktop environment (XFCE) and XRDP
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies xrdp
           sudo systemctl enable --now xrdp
           sudo ufw allow 3389
+          # Create a new user
           sudo useradd -m -s /bin/bash "${{ github.event.inputs.username }}"
           echo "${{ github.event.inputs.username }}:$PASSWORD" | sudo chpasswd
           sudo adduser "${{ github.event.inputs.username }}" sudo
+          # Configure XRDP to use XFCE
+          echo "xfce4-session" | sudo tee /home/${{ github.event.inputs.username }}/.xsession
+          sudo chown ${{ github.event.inputs.username }}:${{ github.event.inputs.username }} /home/${{ github.event.inputs.username }}/.xsession
 
       # --- macOS Setup ---
       - name: Create User & Enable VNC on macOS
@@ -202,20 +207,21 @@ jobs:
           NGROK_LOG="ngrok.log"
           PORT="3389"
 
+          echo "Installing ngrok..."
           if [[ "$RUNNER_OS" == "Linux" ]]; then
-            curl -s https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar -xvz
+            # Add official ngrok repository for robust installation
+            curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+            echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+            sudo apt update
+            sudo apt install -y ngrok
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
             PORT="5900"
-            curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-darwin-amd64.zip -o ngrok.zip
-            unzip -o ngrok.zip
-            xattr -c ngrok
+            # Use Homebrew for reliable installation on macOS
+            brew install ngrok
           elif [[ "$RUNNER_OS" == "Windows" ]]; then
+            # Manual download for Windows
             curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -o ngrok.zip
             unzip -o ngrok.zip
-          fi
-
-          if [[ "$RUNNER_OS" != "Windows" ]]; then
-            chmod +x ngrok
           fi
 
           echo "Starting ngrok tunnel on port $PORT..."
@@ -223,7 +229,8 @@ jobs:
             # For Windows, use PowerShell to start ngrok
             pwsh -Command "Start-Process -NoNewWindow -FilePath 'ngrok.exe' -ArgumentList 'tcp $PORT --authtoken $AUTH_TOKEN --region $REGION --log $NGROK_LOG'"
           else
-            nohup ./ngrok tcp $PORT --authtoken "$AUTH_TOKEN" --region "$REGION" --log "$NGROK_LOG" > /dev/null 2>&1 &
+            # For Linux/macOS, ngrok is now in the PATH
+            nohup ngrok tcp $PORT --authtoken "$AUTH_TOKEN" --region "$REGION" --log "$NGROK_LOG" > /dev/null 2>&1 &
           fi
 
           echo "Waiting for ngrok to start..."
