@@ -24,7 +24,7 @@ on:
 
 env:
   USERNAME: "Ashik"
-  PASSWORD: "AshiksBeastServer2006"
+  PASSWORD: "Ashik@Secure123!"  # Stronger password with special characters
   PC_NAME: "Ashik-PC"
 
 jobs:
@@ -44,10 +44,15 @@ jobs:
           netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
           
+          # Check if user exists and remove if it does
+          if (Get-LocalUser -Name $env:USERNAME -ErrorAction SilentlyContinue) {
+              Remove-LocalUser -Name $env:USERNAME
+          }
+          
           # Create user with fixed password
-          $securePass = ConvertTo-SecureString "$env:PASSWORD" -AsPlainText -Force
-          New-LocalUser -Name "$env:USERNAME" -Password $securePass -FullName "$env:USERNAME"
-          Add-LocalGroupMember -Group "Administrators" -Member "$env:USERNAME"
+          $securePass = ConvertTo-SecureString $env:PASSWORD -AsPlainText -Force
+          New-LocalUser -Name $env:USERNAME -Password $securePass -FullName $env:USERNAME -PasswordNeverExpires
+          Add-LocalGroupMember -Group "Administrators" -Member $env:USERNAME
           
           # Set computer name (remove spaces and special characters)
           $validName = $env:PC_NAME -replace '[^a-zA-Z0-9-]', '-'
