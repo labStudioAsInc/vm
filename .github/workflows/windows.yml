@@ -85,15 +85,11 @@ jobs:
               Write-Warning "Failed to download Chrome installer: $($_.Exception.Message)"
               Write-Host "Trying alternate download method..."
               
-              # Create batch script without here-string
-              $batchContent = @'
-@echo off
-start microsoft-edge:https://www.google.com/chrome/
-timeout /t 10
-exit
-'@
-              $batchContent | Out-File -FilePath "download_chrome.cmd" -Encoding ascii
-              Start-Process -FilePath "download_chrome.cmd" -Wait
+              # Create batch script without @echo off to avoid YAML issues
+              $batchContent = 'start microsoft-edge:https://www.google.com/chrome/'
+              $batchContent | Out-File -FilePath "download_chrome.ps1" -Encoding ascii
+              Start-Process -FilePath "powershell" -ArgumentList "-File download_chrome.ps1" -Wait
+              Start-Sleep -Seconds 10
           }
           
           # Install Chrome
