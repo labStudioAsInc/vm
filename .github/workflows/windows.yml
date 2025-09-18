@@ -132,9 +132,9 @@ exit
             # Download wallpaper
             Invoke-WebRequest -Uri $wallpaperUrl -OutFile $wallpaperPath -ErrorAction Stop
             
-            # Set wallpaper using SystemParametersInfo - simplified approach
-            $wallpaperCode = 'using System; using System.Runtime.InteropServices; public class Wallpaper { [DllImport("user32.dll", CharSet = CharSet.Auto)] public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni); }'
-            Add-Type -TypeDefinition $wallpaperCode
+            # Simple method to set wallpaper without complex C# code
+            $code = 'using System;using System.Runtime.InteropServices;public class Wallpaper{[DllImport("user32.dll",CharSet=CharSet.Auto)]public static extern int SystemParametersInfo(int uAction,int uParam,string lpvParam,int fuWinIni);}'
+            Add-Type -TypeDefinition $code
             $wallpaperClass = New-Object Wallpaper
             $wallpaperClass::SystemParametersInfo(0x0014, 0, $wallpaperPath, 0x01) | Out-Null
             Write-Host "Wallpaper set successfully"
