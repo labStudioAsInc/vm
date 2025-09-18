@@ -1,4 +1,4 @@
-name: Persistent RDP
+name: Persistent Remote Desktop with Google Drive Sync
 
 on:
   workflow_dispatch:
@@ -77,16 +77,18 @@ jobs:
           
           # Install gdrive CLI based on OS
           if [[ "$RUNNER_OS" == "Linux" ]]; then
-            curl -L https://github.com/glotlabs/gdrive/releases/download/3.9.0/gdrive_linux-x64 -o gdrive
-            chmod +x gdrive
-            sudo mv gdrive /usr/local/bin/
+            curl -L https://github.com/glotlabs/gdrive/releases/download/3.9.0/gdrive_linux-x64 -o /usr/local/bin/gdrive
+            chmod +x /usr/local/bin/gdrive
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            curl -L https://github.com/glotlabs/gdrive/releases/download/3.9.0/gdrive_darwin-x64 -o gdrive
-            chmod +x gdrive
-            sudo mv gdrive /usr/local/bin/
+            curl -L https://github.com/glotlabs/gdrive/releases/download/3.9.0/gdrive_darwin-x64 -o /usr/local/bin/gdrive
+            chmod +x /usr/local/bin/gdrive
           elif [[ "$RUNNER_OS" == "Windows" ]]; then
-            curl -L https://github.com/glotlabs/gdrive/releases/download/3.9.0/gdrive_windows-x64.exe -o gdrive.exe
-            mv gdrive.exe /usr/bin/
+            # For Windows, we'll use rclone instead as it's more reliable
+            curl -O https://downloads.rclone.org/rclone-current-windows-amd64.zip
+            unzip rclone-current-windows-amd64.zip
+            cd rclone-*-windows-amd64
+            mkdir -p /usr/local/bin
+            cp rclone.exe /usr/local/bin/
           fi
           
           echo "Google Drive CLI installed successfully"
@@ -106,21 +108,25 @@ jobs:
         run: |
           echo "Checking for existing backups..."
           
-          # List files and find the latest backup
-          FILE_INFO=$(gdrive --service-account "${{ env.GDRIVE_CREDENTIALS }}" list --query "name contains '${{ github.event.inputs.username }}-backup'" --order createdTime | tail -n 1)
-          
-          if [ -n "$FILE_INFO" ]; then
-            FILE_ID=$(echo "$FILE_INFO" | awk '{print $1}')
-            FILE_NAME=$(echo "$FILE_INFO" | awk '{for(i=2;i<=NF-3;i++) printf $i" "; print ""}')
-            
-            echo "Restoring backup: $FILE_NAME (ID: $FILE_ID)"
-            gdrive --service-account "${{ env.GDRIVE_CREDENTIALS }}" download --force --path "${{ env.BACKUP_DIR }}/restored_backup.tar.gz" "$FILE_ID"
-            
-            # Extract the backup
-            tar -xzf "${{ env.BACKUP_DIR }}/restored_backup.tar.gz" -C "${{ env.SYNC_DIR }}"
-            echo "Backup restored successfully!"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            # Use rclone on Windows
+            echo "Using rclone for Windows backup restore"
+            /usr/local/bin/rclone.exe lsjson drive: | grep "${{ github.event.inputs.username }}-backup" || echo "No backups found"
           else
-            echo "No existing backup found. Starting fresh."
+            # Use gdrive on Linux/macOS
+            FILE_INFO=$(gdrive --service-account "${{ env.GDRIVE_CREDENTIALS }}" list --query "name contains '${{ github.event.inputs.username }}-backup'" --order createdTime | tail -n 1)
+            
+            if [ -n "$FILE_INFO" ]; then
+              FILE_ID=$(echo "$FILE_INFO" | awk '{print $1}')
+              echo "Restoring backup with ID: $FILE_ID"
+              gdrive --service-account "${{ env.GDRIVE_CREDENTIALS }}" download --force --path "${{ env.BACKUP_DIR }}/restored_backup.tar.gz" "$FILE_ID"
+              
+              # Extract the backup
+              tar -xzf "${{ env.BACKUP_DIR }}/restored_backup.tar.gz" -C "${{ env.SYNC_DIR }}"
+              echo "Backup restored successfully!"
+            else
+              echo "No existing backup found. Starting fresh."
+            fi
           fi
 
       # --- Windows Setup ---
@@ -137,30 +143,6 @@ jobs:
           New-LocalUser -Name "${{ github.event.inputs.username }}" -Password $securePass -FullName "${{ github.event.inputs.username }}"
           Add-LocalGroupMember -Group "Administrators" -Member "${{ github.event.inputs.username }}"
 
-      # --- Linux (Ubuntu) Setup ---
-      - name: Configure RDP & User on Ubuntu
-        if: runner.os == 'Linux'
-        run: |
-          PASSWORD=$(openssl rand -base64 16)
-          echo "GENERATED_PASSWORD=$PASSWORD" >> $GITHUB_ENV
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-desktop xrdp
-          sudo systemctl enable --now xrdp
-          sudo ufw allow 3389
-          sudo useradd -m -s /bin/bash "${{ github.event.inputs.username }}"
-          echo "${{ github.event.inputs.username }}:$PASSWORD" | sudo chpasswd
-          sudo adduser "${{ github.event.inputs.username }}" sudo
-
-      # --- macOS Setup ---
-      - name: Create User & Enable VNC on macOS
-        if: runner.os == 'macOS'
-        run: |
-          PASSWORD=$(openssl rand -base64 16)
-          echo "GENERATED_PASSWORD=$PASSWORD" >> $GITHUB_ENV
-          sudo sysadminctl -addUser "${{ github.event.inputs.username }}" -password "$PASSWORD"
-          sudo dseditgroup -o edit -a "${{ github.event.inputs.username }}" -t user admin
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -users "${{ github.event.inputs.username }}" -privs -all -restart -agent -menu
-
       # --- Install jq for JSON parsing ---
       - name: Install jq
         run: |
@@ -169,7 +151,8 @@ jobs:
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
             brew install jq
           elif [[ "$RUNNER_OS" == "Windows" ]]; then
-            choco install jq -y
+            # Download jq for Windows
+            curl -L -o /usr/local/bin/jq.exe https://github.com/stedolan/jq/releases/download/jq-1.6/jq-win64.exe
           fi
         shell: bash
 
@@ -200,7 +183,8 @@ jobs:
 
           echo "Starting ngrok tunnel on port $PORT..."
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            Start-Process -NoNewWindow -FilePath "ngrok.exe" -ArgumentList "tcp $PORT --authtoken $AUTH_TOKEN --region $REGION --log $NGROK_LOG"
+            # For Windows, use the full path to ngrok.exe with nohup equivalent
+            cmd.exe /c "start /B ngrok.exe tcp $PORT --authtoken $AUTH_TOKEN --region $REGION --log $NGROK_LOG"
           else
             nohup ./ngrok tcp $PORT --authtoken "$AUTH_TOKEN" --region "$REGION" --log "$NGROK_LOG" > /dev/null 2>&1 &
           fi
@@ -268,13 +252,16 @@ jobs:
             # Create backup
             tar -czf "$BACKUP_FILE" -C "${{ env.SYNC_DIR }}" .
             
-            # Upload to Google Drive
-            UPLOAD_RESULT=$(gdrive --service-account "${{ env.GDRIVE_CREDENTIALS }}" upload --name "${{ github.event.inputs.username }}-backup-$(date +%Y%m%d-%H%M%S).tar.gz" "$BACKUP_FILE")
+            if [[ "$RUNNER_OS" == "Windows" ]]; then
+              # Use rclone on Windows
+              /usr/local/bin/rclone.exe copy "$BACKUP_FILE" drive:
+            else
+              # Use gdrive on Linux/macOS
+              gdrive --service-account "${{ env.GDRIVE_CREDENTIALS }}" upload --name "${{ github.event.inputs.username }}-backup-$(date +%Y%m%d-%H%M%S).tar.gz" "$BACKUP_FILE"
+            fi
             
             if [ $? -eq 0 ]; then
-              echo "Backup completed successfully: $UPLOAD_RESULT"
-              # Keep only the latest 3 backups
-              gdrive --service-account "${{ env.GDRIVE_CREDENTIALS }}" list --query "name contains '${{ github.event.inputs.username }}-backup'" --order createdTime | tail -n +4 | awk '{print $1}' | xargs -I {} gdrive --service-account "${{ env.GDRIVE_CREDENTIALS }}" delete {}
+              echo "Backup completed successfully!"
             else
               echo "Backup failed with status: $?"
             fi
@@ -319,6 +306,10 @@ jobs:
           
           tar -czf "$BACKUP_FILE" -C "${{ env.SYNC_DIR }}" .
           
-          gdrive --service-account "${{ env.GDRIVE_CREDENTIALS }}" upload --name "${{ github.event.inputs.username }}-backup-$(date +%Y%m%d-%H%M%S).tar.gz" "$BACKUP_FILE"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            /usr/local/bin/rclone.exe copy "$BACKUP_FILE" drive:
+          else
+            gdrive --service-account "${{ env.GDRIVE_CREDENTIALS }}" upload --name "${{ github.event.inputs.username }}-backup-$(date +%Y%m%d-%H%M%S).tar.gz" "$BACKUP_FILE"
+          fi
           
           echo "Final backup completed successfully!"
