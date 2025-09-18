@@ -82,60 +82,87 @@ jobs:
         run: |
           PASSWORD=$(openssl rand -base64 16)
           echo "GENERATED_PASSWORD=$PASSWORD" >> $GITHUB_ENV
-          sudo dscl . -create "/Users/${{ github.event.inputs.username }}"
-          sudo dscl . -passwd "/Users/${{ github.event.inputs.username }}" "$PASSWORD"
-          sudo dscl . -append /Groups/admin GroupMembership "${{ github.event.inputs.username }}"
+          sudo sysadminctl -addUser "${{ github.event.inputs.username }}" -password "$PASSWORD"
+          sudo dseditgroup -o edit -a "${{ github.event.inputs.username }}" -t user admin
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -users "${{ github.event.inputs.username }}" -privs -all -restart -agent -menu
 
-      # --- Ngrok Tunneling (Final Universal Fix) ---
+      # --- Install jq for JSON parsing ---
+      - name: Install jq
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo apt-get update && sudo apt-get install -y jq
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            brew install jq
+          elif [[ "$RUNNER_OS" == "Windows" ]]; then
+            choco install jq -y
+          fi
+        shell: bash
+
+      # --- Ngrok Tunneling (Fixed Universal Version) ---
       - name: Setup Ngrok Tunnel
         shell: bash
         run: |
-          # Set variables
           REGION="${{ github.event.inputs.region }}"
           AUTH_TOKEN="${{ secrets.NGROK_AUTH_TOKEN }}"
           NGROK_LOG="ngrok.log"
-          PORT="3389" # Default RDP port
+          PORT="3389"
 
-          # Download and extract ngrok based on OS
+          # Download ngrok based on OS
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             curl -s https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar -xvz
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            PORT="5900" # macOS uses VNC on port 5900
+            PORT="5900"
             curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-darwin-amd64.zip -o ngrok.zip
-            unzip ngrok.zip
-          fi
-          
-          # Apply macOS-specific fixes
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            echo "Applying macOS security fixes..."
-            # Fix 1: Remove quarantine attribute
-            xattr -d com.apple.quarantine ngrok
+            unzip -o ngrok.zip
+            # Remove all extended attributes (including quarantine)
+            xattr -c ngrok
+          elif [[ "$RUNNER_OS" == "Windows" ]]; then
+            curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -o ngrok.zip
+            unzip -o ngrok.zip
           fi
 
-          # Give execute permissions and start the tunnel
-          chmod +x ngrok
+          # Ensure ngrok is executable (non-Windows)
+          if [[ "$RUNNER_OS" != "Windows" ]]; then
+            chmod +x ngrok
+          fi
+
+          # Start ngrok tunnel
           echo "Starting ngrok tunnel on port $PORT..."
-          nohup ./ngrok tcp $PORT --authtoken "$AUTH_TOKEN" --region "$REGION" --log "$NGROK_LOG" &> /dev/null &
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            start /B ngrok.exe tcp $PORT --authtoken "$AUTH_TOKEN" --region "$REGION" --log "$NGROK_LOG"
+          else
+            nohup ./ngrok tcp $PORT --authtoken "$AUTH_TOKEN" --region "$REGION" --log "$NGROK_LOG" > /dev/null 2>&1 &
+          fi
 
-          # Wait for the API to be available
-          echo "Waiting for ngrok API..."
-          sleep 8 # Give it a few seconds to initialize
-          TUNNEL_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url // empty')
+          # Wait and check tunnel connection
+          echo "Waiting for ngrok to start..."
+          sleep 15
+          
+          # Try multiple times to get tunnel URL
+          for i in {1..5}; do
+            TUNNEL_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url // empty')
+            if [ -n "$TUNNEL_URL" ]; then
+              break
+            fi
+            echo "Attempt $i: Tunnel not ready yet, waiting..."
+            sleep 5
+          done
 
           if [ -z "$TUNNEL_URL" ]; then
-            echo "::error::Failed to get ngrok tunnel info."
-            echo "Dumping ngrok log for debugging:"
-            cat $NGROK_LOG || echo "ngrok.log not found."
+            echo "::error::Failed to get ngrok tunnel info after multiple attempts."
+            echo "Ngrok log content:"
+            cat "$NGROK_LOG" 2>/dev/null || echo "No ngrok log found"
+            echo "Checking processes:"
+            ps aux || tasklist
             exit 1
           fi
 
-          # Extract and set connection info
-          RDP_ADDRESS=$(echo $TUNNEL_URL | sed 's|tcp://||' | cut -d: -f1)
-          RDP_PORT=$(echo $TUNNEL_URL | sed 's|tcp://||' | cut -d: -f2)
+          # Extract connection details
+          RDP_ADDRESS=$(echo "$TUNNEL_URL" | sed 's|tcp://||' | cut -d: -f1)
+          RDP_PORT=$(echo "$TUNNEL_URL" | sed 's|tcp://||' | cut -d: -f2)
           echo "RDP_ADDRESS=$RDP_ADDRESS" >> $GITHUB_ENV
           echo "RDP_PORT=$RDP_PORT" >> $GITHUB_ENV
-          echo "Successfully retrieved tunnel information."
+          echo "Tunnel established successfully: $TUNNEL_URL"
 
       # --- Display Connection Info ---
       - name: Display Connection Details
@@ -145,20 +172,38 @@ jobs:
           echo "OS: ${{ github.event.inputs.os }}"
           if [[ "${{ github.event.inputs.os }}" == macos* ]]; then
             echo "Protocol: VNC (Use a VNC Viewer like RealVNC or TightVNC)"
+            echo "Port: 5900"
           else
             echo "Protocol: RDP (Use Remote Desktop Connection)"
+            echo "Port: 3389"
           fi
-          echo "Address: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
+          echo "Address: ${{ env.RDP_ADDRESS }}"
+          echo "Port: ${{ env.RDP_PORT }}"
           echo "Username: ${{ github.event.inputs.username }}"
           echo "Password: ${{ env.GENERATED_PASSWORD }}"
           echo "=========================================="
+          echo "Connection string: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
         shell: bash
-        
+
       # --- Maintain Connection ---
       - name: Keep Workflow Alive
         run: |
-          while ($true) {
-            Write-Host "[$(Get-Date)] Session is active. Connection details are above."
-            Start-Sleep -Seconds 60
-          }
-        shell: pwsh
+          echo "Remote desktop session is now active!"
+          echo "The workflow will remain running for ${{ github.event.inputs.timeout }} minutes."
+          echo "Press Ctrl+C in the workflow logs to terminate the session early."
+          
+          # Different keep-alive approaches per OS
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            # Windows
+            while ($true) {
+              Write-Host "[$(Get-Date)] Session active - Address: $env:RDP_ADDRESS:$env:RDP_PORT"
+              Start-Sleep -Seconds 60
+            }
+          else
+            # Linux/macOS
+            while true; do
+              echo "[$(date)] Session active - Address: $RDP_ADDRESS:$RDP_PORT"
+              sleep 60
+            done
+          fi
+        shell: bash
