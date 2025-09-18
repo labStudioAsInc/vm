@@ -205,7 +205,13 @@ jobs:
           REGION="${{ github.event.inputs.region }}"
           AUTH_TOKEN="${{ secrets.NGROK_AUTH_TOKEN }}"
           NGROK_LOG="ngrok.log"
+          CONFIG_FILE="ngrok.yml"
           PORT="3389"
+
+          # Create ngrok configuration file
+          echo "version: \"2\"" > $CONFIG_FILE
+          echo "authtoken: $AUTH_TOKEN" >> $CONFIG_FILE
+          echo "region: $REGION" >> $CONFIG_FILE
 
           echo "Installing ngrok..."
           if [[ "$RUNNER_OS" == "Linux" ]]; then
@@ -227,10 +233,10 @@ jobs:
           echo "Starting ngrok tunnel on port $PORT..."
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             # For Windows, use PowerShell to start ngrok
-            pwsh -Command "Start-Process -NoNewWindow -FilePath 'ngrok.exe' -ArgumentList 'tcp $PORT --authtoken $AUTH_TOKEN --region $REGION --log $NGROK_LOG'"
+            pwsh -Command "Start-Process -NoNewWindow -FilePath 'ngrok.exe' -ArgumentList 'tcp $PORT --config $CONFIG_FILE --log $NGROK_LOG'"
           else
             # For Linux/macOS, ngrok is now in the PATH
-            nohup ngrok tcp $PORT --authtoken "$AUTH_TOKEN" --region "$REGION" --log "$NGROK_LOG" > /dev/null 2>&1 &
+            nohup ngrok tcp $PORT --config "$CONFIG_FILE" --log "$NGROK_LOG" > /dev/null 2>&1 &
           fi
 
           echo "Waiting for ngrok to start..."
