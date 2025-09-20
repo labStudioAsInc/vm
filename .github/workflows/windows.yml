@@ -1,4 +1,4 @@
-name: Windows RDP Setup
+name: Windows VM
 
 on:
   workflow_dispatch:
@@ -8,24 +8,24 @@ on:
         required: true
         type: choice
         options:
-        - us
-        - eu
-        - ap
-        - au
-        - sa
-        - jp
-        - in
-        default: in
+        - "us"
+        - "eu"
+        - "ap"
+        - "au"
+        - "sa"
+        - "jp"
+        - "in"
+        default: 'in'
       timeout:
         description: 'Session Timeout (minutes, max 360)'
         required: true
         type: string
         default: '360'
-
-env:
-  USERNAME: Ashik
-  PASSWORD: Ashik@Secure123!
-  PC_NAME: Ashik-PC
+      username:
+        description: 'Custom Username'
+        required: true
+        type: string
+        default: 'Ashik'
 
 jobs:
   rdp-session:
@@ -36,33 +36,25 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Configure RDP & User
+      # --- Windows Setup ---
+      - name: Configure RDP & User on Windows
         shell: pwsh
         run: |
-          # Enable RDP
+          $password = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 20 | ForEach-Object { [char]$_ })
+          echo "GENERATED_PASSWORD=$password" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
-          
-          # Check if user exists and remove if it does
-          if (Get-LocalUser -Name $env:USERNAME -ErrorAction SilentlyContinue) {
-              Remove-LocalUser -Name $env:USERNAME
-          }
-          
-          # Create user with fixed password
-          $securePass = ConvertTo-SecureString $env:PASSWORD -AsPlainText -Force
-          New-LocalUser -Name $env:USERNAME -Password $securePass -FullName $env:USERNAME -PasswordNeverExpires
-          Add-LocalGroupMember -Group "Administrators" -Member $env:USERNAME
-          
-          # Set computer name (remove spaces and special characters)
-          $validName = $env:PC_NAME -replace '[^a-zA-Z0-9-]', '-'
-          Rename-Computer -NewName $validName -Force
-          Write-Host "Computer name set to: $validName"
+          $securePass = ConvertTo-SecureString "$password" -AsPlainText -Force
+          New-LocalUser -Name "${{ github.event.inputs.username }}" -Password $securePass -FullName "${{ github.event.inputs.username }}"
+          Add-LocalGroupMember -Group "Administrators" -Member "${{ github.event.inputs.username }}"
 
+      # --- NEW STEP: Install Virtual Sound Card and Enable Audio for Windows ---
       - name: Install Virtual Sound Card and Enable Audio
         shell: pwsh
         run: |
           echo "Installing VB-CABLE Virtual Audio Device using Chocolatey..."
+          # Using --force to ensure installation even if a previous attempt failed or package exists
           choco install vb-cable -y --force
           
           echo "Enabling Windows Audio Services..."
@@ -88,13 +80,6 @@ jobs:
               Write-Host "Chrome installer downloaded successfully"
           } catch {
               Write-Warning "Failed to download Chrome installer: $($_.Exception.Message)"
-              Write-Host "Trying alternate download method..."
-              
-              # Create PowerShell script to open Edge
-              $psContent = 'Start-Process "microsoft-edge:https://www.google.com/chrome/"'
-              $psContent | Out-File -FilePath "download_chrome.ps1" -Encoding ascii
-              Start-Process -FilePath "powershell" -ArgumentList "-File download_chrome.ps1" -Wait
-              Start-Sleep -Seconds 10
           }
           
           # Install Chrome
@@ -116,131 +101,93 @@ jobs:
                   Write-Warning "Chrome installation may have failed, path not found: $chromePath"
               }
           } else {
-              Write-Warning "Chrome installer not found, trying direct download from web"
-              # Final fallback - use the standard online installer
-              $webClient = New-Object System.Net.WebClient
-              $webClient.DownloadFile("https://www.google.com/chrome/", "chrome_online_installer.exe")
-              Start-Process -FilePath "chrome_online_installer.exe" -ArgumentList "/silent /install" -Wait
+              Write-Warning "Chrome installer not found."
           }
 
-      - name: Set Custom Wallpaper
-        shell: pwsh
-        run: |
-          $wallpaperUrl = "https://4kwallpapers.com/images/wallpapers/windows-11-dark-mode-blue-stock-official-3840x2160-5630.jpg"
-          $wallpaperPath = "$env:TEMP\wallpaper.jpg"
-          
-          try {
-            # Download wallpaper
-            Invoke-WebRequest -Uri $wallpaperUrl -OutFile $wallpaperPath -ErrorAction Stop
-            
-            # Simple method to set wallpaper without complex C# code
-            $code = 'using System;using System.Runtime.InteropServices;public class Wallpaper{[DllImport("user32.dll",CharSet=CharSet.Auto)]public static extern int SystemParametersInfo(int uAction,int uParam,string lpvParam,int fuWinIni);}'
-            Add-Type -TypeDefinition $code
-            $wallpaperClass = New-Object Wallpaper
-            $wallpaperClass::SystemParametersInfo(0x0014, 0, $wallpaperPath, 0x01) | Out-Null
-            Write-Host "Wallpaper set successfully"
-          } catch {
-            Write-Warning "Failed to set wallpaper: $($_.Exception.Message)"
-            # Fallback: Use a solid color
-            Write-Host "Using fallback solid color background"
-            Set-ItemProperty -Path 'HKCU:\Control Panel\Colors' -Name Background -Value "0 78 152" -Type String
-          }
-
+      # --- Install jq for JSON parsing ---
       - name: Install jq
-        shell: pwsh
         run: |
           # Create the directory first, then download jq
-          New-Item -ItemType Directory -Force -Path "C:\ProgramData\chocolatey\bin" | Out-Null
-          Invoke-WebRequest -Uri "https://github.com/stedolan/jq/releases/download/jq-1.6/jq-win64.exe" -OutFile "C:\ProgramData\chocolatey\bin\jq.exe"
-          # Add to PATH for current session
-          $env:Path += ";C:\ProgramData\chocolatey\bin"
+          mkdir -p /usr/local/bin
+          curl -L -o /usr/local/bin/jq.exe https://github.com/stedolan/jq/releases/download/jq-1.6/jq-win64.exe
+          chmod +x /usr/local/bin/jq.exe
+        shell: bash
 
+      # --- Ngrok Tunneling ---
       - name: Setup Ngrok Tunnel
-        shell: pwsh
+        shell: bash
         run: |
-          $REGION = "${{ github.event.inputs.region }}"
-          $AUTH_TOKEN = "${{ secrets.NGROK_AUTH_TOKEN }}"
-          $NGROK_LOG = "ngrok.log"
-          $CONFIG_FILE = "ngrok.yml"
-          $PORT = "3389"
+          REGION="${{ github.event.inputs.region }}"
+          AUTH_TOKEN="${{ secrets.NGROK_AUTH_TOKEN }}"
+          NGROK_LOG="ngrok.log"
+          CONFIG_FILE="ngrok.yml"
+          PORT="3389"
 
           # Create ngrok configuration file
-          "version: `"2`"" | Out-File -FilePath $CONFIG_FILE -Encoding ascii
-          "authtoken: $AUTH_TOKEN" | Out-File -FilePath $CONFIG_FILE -Encoding ascii -Append
-          "region: $REGION" | Out-File -FilePath $CONFIG_FILE -Encoding ascii -Append
+          echo "version: \"2\"" > $CONFIG_FILE
+          echo "authtoken: $AUTH_TOKEN" >> $CONFIG_FILE
+          echo "region: $REGION" >> $CONFIG_FILE
 
-          Write-Host "Downloading ngrok..."
+          echo "Installing ngrok..."
           # Manual download for Windows
-          Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
-          Expand-Archive -Path "ngrok.zip" -DestinationPath . -Force
+          curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -o ngrok.zip
+          unzip -o ngrok.zip
 
-          Write-Host "Starting ngrok tunnel on port $PORT..."
-          Start-Process -NoNewWindow -FilePath ".\ngrok.exe" -ArgumentList "tcp $PORT --config $CONFIG_FILE --log $NGROK_LOG"
+          echo "Starting ngrok tunnel on port $PORT..."
+          # For Windows, use PowerShell to start ngrok
+          pwsh -Command "Start-Process -NoNewWindow -FilePath 'ngrok.exe' -ArgumentList 'tcp $PORT --config $CONFIG_FILE --log $NGROK_LOG'"
 
-          Write-Host "Waiting for ngrok to start..."
-          Start-Sleep -Seconds 15
+          echo "Waiting for ngrok to start..."
+          sleep 15
           
-          $tunnelUrl = $null
-          $attempts = 0
-          while ($attempts -lt 5 -and -not $tunnelUrl) {
-              try {
-                  $tunnelInfo = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels" -ErrorAction Stop
-                  $tunnelUrl = $tunnelInfo.tunnels[0].public_url
-              } catch {
-                  Write-Host "Attempt $($attempts + 1): Tunnel not ready yet, waiting..."
-                  Start-Sleep -Seconds 5
-              }
-              $attempts++
-          }
+          for i in {1..5}; do
+            TUNNEL_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url // empty')
+            if [ -n "$TUNNEL_URL" ]; then
+              break
+            fi
+            echo "Attempt $i: Tunnel not ready yet, waiting..."
+            sleep 5
+          done
 
-          if (-not $tunnelUrl) {
-              Write-Error "Failed to get ngrok tunnel info after multiple attempts."
-              if (Test-Path $NGROK_LOG) {
-                  Write-Host "Ngrok log content:"
-                  Get-Content $NGROK_LOG
-              } else {
-                  Write-Host "No ngrok log found"
-              }
-              exit 1
-          }
+          if [ -z "$TUNNEL_URL" ]; then
+            echo "::error::Failed to get ngrok tunnel info after multiple attempts."
+            echo "Ngrok log content:"
+            cat "$NGROK_LOG" 2>/dev/null || echo "No ngrok log found"
+            exit 1
+          fi
 
-          $tunnelUrl = $tunnelUrl -replace "tcp://", ""
-          $tunnelParts = $tunnelUrl -split ":"
-          $RDP_ADDRESS = $tunnelParts[0]
-          $RDP_PORT = $tunnelParts[1]
-          
-          "RDP_ADDRESS=$RDP_ADDRESS" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "RDP_PORT=$RDP_PORT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Host "Tunnel established successfully: $tunnelUrl"
+          RDP_ADDRESS=$(echo "$TUNNEL_URL" | sed 's|tcp://||' | cut -d: -f1)
+          RDP_PORT=$(echo "$TUNNEL_URL" | sed 's|tcp://||' | cut -d: -f2)
+          echo "RDP_ADDRESS=$RDP_ADDRESS" >> $GITHUB_ENV
+          echo "RDP_PORT=$RDP_PORT" >> $GITHUB_ENV
+          echo "Tunnel established successfully: $TUNNEL_URL"
 
+      # --- Display Connection Info ---
       - name: Display Connection Details
-        shell: pwsh
         run: |
-          Write-Host "🎯 CONNECTION DETAILS 🎯"
-          Write-Host "=========================================="
-          Write-Host "OS: Windows"
-          Write-Host "Protocol: RDP (Use Remote Desktop Connection)"
-          Write-Host "Port: 3389"
-          Write-Host "Address: $env:RDP_ADDRESS"
-          Write-Host "Port: $env:RDP_PORT"
-          Write-Host "Username: $env:USERNAME"
-          Write-Host "Password: $env:PASSWORD"
-          Write-Host "PC Name: $env:PC_NAME"
-          Write-Host "Default Browser: Google Chrome"
-          Write-Host "=========================================="
-          Write-Host "Connection string: $env:RDP_ADDRESS`:$env:RDP_PORT"
+          echo "🎯 CONNECTION DETAILS 🎯"
+          echo "=========================================="
+          echo "OS: Windows"
+          echo "Protocol: RDP (Use Remote Desktop Connection)"
+          echo "Port: 3389"
+          echo "Address: ${{ env.RDP_ADDRESS }}"
+          echo "Port: ${{ env.RDP_PORT }}"
+          echo "Username: ${{ github.event.inputs.username }}"
+          echo "Password: ${{ env.GENERATED_PASSWORD }}"
+          echo "=========================================="
+          echo "Connection string: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
+        shell: bash
 
+      # --- Keep Alive ---
       - name: Keep Workflow Alive
-        shell: pwsh
+        shell: bash
         run: |
-          Write-Host "Remote desktop session is now active!"
-          Write-Host "The workflow will remain running for ${{ github.event.inputs.timeout }} minutes."
-          Write-Host "Press Ctrl+C in the workflow logs to terminate the session early."
+          echo "Remote desktop session is now active!"
+          echo "The workflow will remain running for ${{ github.event.inputs.timeout }} minutes."
+          echo "Press Ctrl+C in the workflow logs to terminate the session early."
 
-          # Main loop to keep the workflow running
-          $count = 0
-          while ($true) {
-              Write-Host "[$(Get-Date)] Session active - Address: $env:RDP_ADDRESS`:$env:RDP_PORT"
-              Start-Sleep -Seconds 60
-              $count++
-          }
+          # Main loop
+          while true; do
+            echo "[$(date)] Session active - Address: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
+            sleep 60
+          done

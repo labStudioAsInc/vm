@@ -1,0 +1,142 @@
+name: Ubuntu VM
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: 'Select Ngrok Tunnel Region'
+        required: true
+        type: choice
+        options:
+        - "us"
+        - "eu"
+        - "ap"
+        - "au"
+        - "sa"
+        - "jp"
+        - "in"
+        default: 'in'
+      timeout:
+        description: 'Session Timeout (minutes, max 360)'
+        required: true
+        type: string
+        default: '360'
+      username:
+        description: 'Custom Username'
+        required: true
+        type: string
+        default: 'Ashik'
+
+jobs:
+  rdp-session:
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(github.event.inputs.timeout) }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # --- Linux (Ubuntu) Setup ---
+      - name: Configure RDP & User on Ubuntu
+        run: |
+          PASSWORD=$(openssl rand -base64 16)
+          echo "GENERATED_PASSWORD=$PASSWORD" >> $GITHUB_ENV
+          sudo apt-get update
+          # Install a lightweight desktop environment (XFCE) and XRDP
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies xrdp
+          sudo systemctl enable --now xrdp
+          sudo ufw allow 3389
+          # Create a new user
+          sudo useradd -m -s /bin/bash "${{ github.event.inputs.username }}"
+          echo "${{ github.event.inputs.username }}:$PASSWORD" | sudo chpasswd
+          sudo adduser "${{ github.event.inputs.username }}" sudo
+          # Configure XRDP to use XFCE
+          echo "xfce4-session" | sudo tee /home/${{ github.event.inputs.username }}/.xsession
+          sudo chown ${{ github.event.inputs.username }}:${{ github.event.inputs.username }} /home/${{ github.event.inputs.username }}/.xsession
+
+      # --- Install jq for JSON parsing ---
+      - name: Install jq
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+        shell: bash
+
+      # --- Ngrok Tunneling ---
+      - name: Setup Ngrok Tunnel
+        shell: bash
+        run: |
+          REGION="${{ github.event.inputs.region }}"
+          AUTH_TOKEN="${{ secrets.NGROK_AUTH_TOKEN }}"
+          NGROK_LOG="ngrok.log"
+          CONFIG_FILE="ngrok.yml"
+          PORT="3389"
+
+          # Create ngrok configuration file
+          echo "version: \"2\"" > $CONFIG_FILE
+          echo "authtoken: $AUTH_TOKEN" >> $CONFIG_FILE
+          echo "region: $REGION" >> $CONFIG_FILE
+
+          echo "Installing ngrok..."
+          # Add official ngrok repository for robust installation
+          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+          echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+          sudo apt update
+          sudo apt install -y ngrok
+
+          echo "Starting ngrok tunnel on port $PORT..."
+          # For Linux/macOS, ngrok is now in the PATH
+          nohup ngrok tcp $PORT --config "$CONFIG_FILE" --log "$NGROK_LOG" > /dev/null 2>&1 &
+
+          echo "Waiting for ngrok to start..."
+          sleep 15
+
+          for i in {1..5}; do
+            TUNNEL_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url // empty')
+            if [ -n "$TUNNEL_URL" ]; then
+              break
+            fi
+            echo "Attempt $i: Tunnel not ready yet, waiting..."
+            sleep 5
+          done
+
+          if [ -z "$TUNNEL_URL" ]; then
+            echo "::error::Failed to get ngrok tunnel info after multiple attempts."
+            echo "Ngrok log content:"
+            cat "$NGROK_LOG" 2>/dev/null || echo "No ngrok log found"
+            exit 1
+          fi
+
+          RDP_ADDRESS=$(echo "$TUNNEL_URL" | sed 's|tcp://||' | cut -d: -f1)
+          RDP_PORT=$(echo "$TUNNEL_URL" | sed 's|tcp://||' | cut -d: -f2)
+          echo "RDP_ADDRESS=$RDP_ADDRESS" >> $GITHUB_ENV
+          echo "RDP_PORT=$RDP_PORT" >> $GITHUB_ENV
+          echo "Tunnel established successfully: $TUNNEL_URL"
+
+      # --- Display Connection Info ---
+      - name: Display Connection Details
+        run: |
+          echo "🎯 CONNECTION DETAILS 🎯"
+          echo "=========================================="
+          echo "OS: Ubuntu"
+          echo "Protocol: RDP (Use Remote Desktop Connection)"
+          echo "Port: 3389"
+          echo "Address: ${{ env.RDP_ADDRESS }}"
+          echo "Port: ${{ env.RDP_PORT }}"
+          echo "Username: ${{ github.event.inputs.username }}"
+          echo "Password: ${{ env.GENERATED_PASSWORD }}"
+          echo "=========================================="
+          echo "Connection string: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
+        shell: bash
+
+      # --- Keep Alive ---
+      - name: Keep Workflow Alive
+        shell: bash
+        run: |
+          echo "Remote desktop session is now active!"
+          echo "The workflow will remain running for ${{ github.event.inputs.timeout }} minutes."
+          echo "Press Ctrl+C in the workflow logs to terminate the session early."
+
+          # Main loop
+          while true; do
+            echo "[$(date)] Session active - Address: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
+            sleep 60
+          done
