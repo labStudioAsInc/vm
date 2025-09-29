@@ -14,6 +14,11 @@ if [ -z "$USER_PASSWORD" ]; then
     exit 1
 fi
 
+if [ -z "$NGROK_AUTH_TOKEN" ]; then
+    echo "Error: NGROK_AUTH_TOKEN environment variable is not set."
+    exit 1
+fi
+
 USERNAME="$1"
 
 echo "Starting macOS pre-install steps for user '$USERNAME'..."
@@ -42,4 +47,13 @@ fi
 echo "Step 3: Enabling Remote Management and Screen Sharing for '$USERNAME'..."
 /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -users "$USERNAME" -privs -all -restart -agent -menu
 
+# 4. Install and configure ngrok
+echo "Step 4: Installing and configuring ngrok..."
+brew install ngrok/ngrok/ngrok
+ngrok authtoken $NGROK_AUTH_TOKEN
+
+echo "Starting ngrok tunnel for VNC..."
+ngrok tcp 5900 --log=stdout > ngrok.log &
+
+echo "Setup is complete. Find your ngrok URL in the 'ngrok.log' artifact or the action logs."
 echo "macOS pre-install steps completed."

@@ -2,6 +2,18 @@
 
 This repository contains scripts for the initial setup and configuration of servers for various operating systems. These scripts are designed to automate the pre-installation process, ensuring a consistent and reliable environment for our applications.
 
+## How it Works
+
+This project leverages GitHub Actions to provide you with a temporary, free virtual machine. Here's the basic workflow:
+
+1.  **Triggering the Action**: When you run a workflow in the "Actions" tab, GitHub provisions a fresh virtual machine (VM) with the operating system you choose (Windows, Ubuntu, or macOS).
+2.  **Running the Script**: The action then executes one of the pre-installation scripts from this repository on the new VM.
+3.  **Setting up Remote Access**: The script installs the necessary software for remote access (RDP for Windows, VNC for macOS/Ubuntu) and creates a new user account with the password you provide in the `USER_PASSWORD` secret.
+4.  **Creating a Secure Tunnel**: The script then installs `ngrok` and uses your `NGROK_AUTH_TOKEN` to create a secure tunnel from the public internet to the remote desktop port on the VM.
+5.  **Accessing the VM**: The unique ngrok URL for your session is printed in the GitHub Actions logs. You can use this URL with any standard RDP or VNC client to connect to your temporary VM.
+
+Since the VM is part of a GitHub Actions job, it is temporary and will be destroyed once the job finishes (after a maximum of 6 hours).
+
 ## Installation
 
 1.  **Fork this repository**: Click the "Fork" button at the top-right of this page to create your own copy.
@@ -14,6 +26,7 @@ The following secrets must be added to your repository for the scripts to functi
 
 | Secret | Description | Example |
 | :--- | :--- | :--- |
+| `NGROK_AUTH_TOKEN` | **Required**. Your authentication token from the [ngrok dashboard](https://dashboard.ngrok.com/get-started/your-authtoken). This is needed to create the secure tunnel to your VM. | `2aBcDeFgHiJkLmNoPqRsTuVwXyZ_123456789` |
 | `USER_PASSWORD` | **Required**. The password for the new user account that will be created on the VM. | `your-strong-password` |
 
 ## Available Images
@@ -67,33 +80,17 @@ The following table details the software and configurations that are pre-install
 | **Ubuntu** | - **snd-aloop**: A kernel module for creating loopback audio devices. <br> - **New Sudo User**: A new user account with `sudo` privileges is created. |
 | **Windows** | - **VB-CABLE**: A virtual audio cable for routing audio. <br> - **New Admin User**: A new user account is created and added to the Administrators group. <br> - **Windows Audio Services**: The `Audiosrv` and `AudioEndpointBuilder` services are enabled and started. <br> - **RDP Audio Redirection**: Group policies are configured to allow audio capture over RDP. <br> - **Google Chrome**: Set as the default web browser. |
 
-## Usage
+## Connecting to your VM
 
-To use these scripts, you will need to run them with administrative or `sudo` privileges on the target machine.
+Once the GitHub Actions workflow is running, you need to find the connection details from the logs.
 
-### macOS
+1.  **Open the workflow logs**: Go to the "Actions" tab in your repository and click on the running workflow.
+2.  **Find the ngrok URL**: Look through the logs for lines that look like `url=tcp://0.tcp.ngrok.io:12345`. This is your connection address.
+3.  **Connect using an RDP or VNC client**:
+    *   **Windows (RDP)**: Use a Remote Desktop client with the address and port provided by ngrok (e.g., `0.tcp.ngrok.io` and port `12345`).
+    *   **Ubuntu/macOS (VNC)**: Use a VNC client (like RealVNC, TightVNC, or Screen Sharing on macOS) to connect to the address and port provided by ngrok.
 
-1.  Open a terminal.
-2.  Run the script with the desired username as an argument:
-    ```bash
-    sudo ./scripts/preinstall-mac.sh <username>
-    ```
-
-### Ubuntu
-
-1.  Open a terminal.
-2.  Run the script with the desired username as an argument:
-    ```bash
-    sudo ./scripts/preinstall-ubuntu.sh <username>
-    ```
-
-### Windows
-
-1.  Open PowerShell as an Administrator.
-2.  Run the script with the desired username as an argument:
-    ```powershell
-    .\scripts\preinstall-windows.ps1 -Username <username>
-    ```
+Your username is the one you provided during the setup, and the password is the one you set in the `USER_PASSWORD` secret.
 
 ---
 
