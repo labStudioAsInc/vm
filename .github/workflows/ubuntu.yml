@@ -31,19 +31,14 @@ jobs:
       - name: Run pre-install script
         run: |
           chmod +x ./scripts/preinstall-ubuntu.sh
-          ./scripts/preinstall-ubuntu.sh
+          ./scripts/preinstall-ubuntu.sh "${{ inputs.username }}"
 
-      - name: Configure RDP & User on Ubuntu
+      - name: Configure RDP on Ubuntu
         run: |
-          PASSWORD=$(openssl rand -base64 16)
-          echo "GENERATED_PASSWORD=$PASSWORD" >> $GITHUB_ENV
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies xrdp
           sudo systemctl enable --now xrdp
           sudo ufw allow 3389
-          sudo useradd -m -s /bin/bash "${{ inputs.username }}"
-          echo "${{ inputs.username }}:$PASSWORD" | sudo chpasswd
-          sudo adduser "${{ inputs.username }}" sudo
           echo "xfce4-session" | sudo tee /home/${{ inputs.username }}/.xsession
           sudo chown ${{ inputs.username }}:${{ inputs.username }} /home/${{ inputs.username }}/.xsession
 
@@ -109,7 +104,7 @@ jobs:
           echo "Address: ${{ env.RDP_ADDRESS }}"
           echo "Port: ${{ env.RDP_PORT }}"
           echo "Username: ${{ inputs.username }}"
-          echo "Password: ${{ env.GENERATED_PASSWORD }}"
+          echo "Password: Gck83gYShmW6IqfpNwRT"
           echo "=========================================="
           echo "Connection string: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
         shell: bash
