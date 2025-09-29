@@ -8,12 +8,22 @@ param (
     [string]$Username
 )
 
+if (-not $env:USER_PASSWORD) {
+    Write-Error "Error: USER_PASSWORD environment variable is not set."
+    exit 1
+}
+
+if (-not $env:NGROK_AUTH_TOKEN) {
+    Write-Error "Error: NGROK_AUTH_TOKEN environment variable is not set."
+    exit 1
+}
+
 Write-Host "Starting Windows pre-install steps..."
 
 # 1. Create a new user with a static password
 Write-Host "Step 1: Creating new user '$Username'..."
 try {
-    $Password = ConvertTo-SecureString "Gck83gYShmW6IqfpNwRT" -AsPlainText -Force
+    $Password = ConvertTo-SecureString $env:USER_PASSWORD -AsPlainText -Force
     New-LocalUser -Name $Username -Password $Password -FullName $Username -Description "Dynamic user account." -PasswordNeverExpires
     Add-LocalGroupMember -Group "Administrators" -Member $Username
     Write-Host "Successfully created user '$Username' and added to Administrators group."
@@ -68,5 +78,30 @@ try {
         Remove-Item -Path $xmlPath -Force
     }
 }
+
+# 4. Enable Remote Desktop
+Write-Host "Step 4: Enabling Remote Desktop..."
+try {
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+    Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+    Write-Host "Remote Desktop enabled."
+} catch {
+    Write-Error "Failed to enable Remote Desktop: $_"
+}
+
+# 5. Install and configure ngrok
+Write-Host "Step 5: Installing and configuring ngrok..."
+try {
+    choco install ngrok -y --force
+    ngrok.exe config add-authtoken $env:NGROK_AUTH_TOKEN
+
+    Write-Host "Starting ngrok tunnel for RDP..."
+    Start-Process -FilePath "ngrok.exe" -ArgumentList "tcp 3389 --log=stdout" -RedirectStandardOutput "ngrok.log" -NoNewWindow
+
+    Write-Host "Setup is complete. Find your ngrok URL in the 'ngrok.log' artifact or the action logs."
+} catch {
+    Write-Error "Failed to install or configure ngrok: $_"
+}
+
 
 Write-Host "Windows pre-install steps completed."
