@@ -9,6 +9,11 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+if [ -z "$USER_PASSWORD" ]; then
+    echo "Error: USER_PASSWORD environment variable is not set."
+    exit 1
+fi
+
 USERNAME="$1"
 
 echo "Starting macOS pre-install steps for user '$USERNAME'..."
@@ -25,7 +30,7 @@ fi
 # 2. Create a new user with a static password and admin rights
 echo "Step 2: Creating new user '$USERNAME'..."
 # Use sysadminctl to create user and grant admin privileges
-sysadminctl -addUser "$USERNAME" -password "Gck83gYShmW6IqfpNwRT" -admin
+sysadminctl -addUser "$USERNAME" -password "$USER_PASSWORD" -admin
 if [ $? -eq 0 ]; then
     echo "Successfully created admin user '$USERNAME'."
 else

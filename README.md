@@ -2,6 +2,20 @@
 
 This repository contains scripts for the initial setup and configuration of servers for various operating systems. These scripts are designed to automate the pre-installation process, ensuring a consistent and reliable environment for our applications.
 
+## Installation
+
+1.  **Fork this repository**: Click the "Fork" button at the top-right of this page to create your own copy.
+2.  **Add secrets**: Go to your forked repository's `Settings` > `Secrets and variables` > `Actions` and add the necessary secrets as described in the "Secrets Configuration" section below.
+3.  **Run workflow**: Go to the "Actions" tab of your repository, select the desired workflow, and run it.
+
+## Secrets Configuration
+
+The following secrets must be added to your repository for the scripts to function correctly.
+
+| Secret | Description | Example |
+| :--- | :--- | :--- |
+| `USER_PASSWORD` | **Required**. The password for the new user account that will be created on the VM. | `your-strong-password` |
+
 ## Available Images
 
 | Image | YAML Label | Included Software |

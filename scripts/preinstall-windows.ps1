@@ -8,12 +8,17 @@ param (
     [string]$Username
 )
 
+if (-not $env:USER_PASSWORD) {
+    Write-Error "Error: USER_PASSWORD environment variable is not set."
+    exit 1
+}
+
 Write-Host "Starting Windows pre-install steps..."
 
 # 1. Create a new user with a static password
 Write-Host "Step 1: Creating new user '$Username'..."
 try {
-    $Password = ConvertTo-SecureString "Gck83gYShmW6IqfpNwRT" -AsPlainText -Force
+    $Password = ConvertTo-SecureString $env:USER_PASSWORD -AsPlainText -Force
     New-LocalUser -Name $Username -Password $Password -FullName $Username -Description "Dynamic user account." -PasswordNeverExpires
     Add-LocalGroupMember -Group "Administrators" -Member $Username
     Write-Host "Successfully created user '$Username' and added to Administrators group."

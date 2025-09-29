@@ -9,6 +9,11 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+if [ -z "$USER_PASSWORD" ]; then
+    echo "Error: USER_PASSWORD environment variable is not set."
+    exit 1
+fi
+
 USERNAME="$1"
 
 echo "Starting Ubuntu pre-install steps for user '$USERNAME'..."
@@ -34,12 +39,12 @@ fi
 echo "Step 2: Creating new user '$USERNAME'..."
 if id "$USERNAME" &>/dev/null; then
     echo "User '$USERNAME' already exists. Setting password and ensuring sudo rights."
-    echo "$USERNAME:Gck83gYShmW6IqfpNwRT" | chpasswd
+    echo "$USERNAME:$USER_PASSWORD" | chpasswd
     usermod -aG sudo "$USERNAME"
 else
     useradd -m -s /bin/bash "$USERNAME"
     if [ $? -eq 0 ]; then
-        echo "$USERNAME:Gck83gYShmW6IqfpNwRT" | chpasswd
+        echo "$USERNAME:$USER_PASSWORD" | chpasswd
         usermod -aG sudo "$USERNAME"
         echo "Successfully created user '$USERNAME' and added to sudo group."
     else
