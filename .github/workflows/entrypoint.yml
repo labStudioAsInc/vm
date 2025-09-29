@@ -1,0 +1,68 @@
+name: Main Entrypoint
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: 'Select Operating System'
+        required: true
+        type: choice
+        options:
+        - windows-latest
+        - macos-latest
+        - ubuntu-latest
+        default: 'windows-latest'
+      username:
+        description: 'Custom Username'
+        required: true
+        type: string
+        default: 'Ashik'
+      region:
+        description: 'Select Ngrok Tunnel Region'
+        required: true
+        type: choice
+        options:
+        - "us"
+        - "eu"
+        - "ap"
+        - "au"
+        - "sa"
+        - "jp"
+        - "in"
+        default: 'in'
+      timeout:
+        description: 'Session Timeout (minutes, max 360)'
+        required: true
+        type: string
+        default: '360'
+
+jobs:
+  call-windows-workflow:
+    if: ${{ github.event.inputs.os == 'windows-latest' }}
+    uses: ./.github/workflows/windows.yml
+    with:
+      username: ${{ github.event.inputs.username }}
+      region: ${{ github.event.inputs.region }}
+      timeout: ${{ github.event.inputs.timeout }}
+    secrets:
+      NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+
+  call-macos-workflow:
+    if: ${{ github.event.inputs.os == 'macos-latest' }}
+    uses: ./.github/workflows/macos.yml
+    with:
+      username: ${{ github.event.inputs.username }}
+      region: ${{ github.event.inputs.region }}
+      timeout: ${{ github.event.inputs.timeout }}
+    secrets:
+      NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+
+  call-ubuntu-workflow:
+    if: ${{ github.event.inputs.os == 'ubuntu-latest' }}
+    uses: ./.github/workflows/ubuntu.yml
+    with:
+      username: ${{ github.event.inputs.username }}
+      region: ${{ github.event.inputs.region }}
+      timeout: ${{ github.event.inputs.timeout }}
+    secrets:
+      NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
