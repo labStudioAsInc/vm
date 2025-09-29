@@ -35,14 +35,6 @@ on:
         required: true
         type: string
         default: '360'
-      backup_enabled:
-        description: 'Enable Google Drive Backup'
-        required: true
-        type: choice
-        options:
-        - 'true'
-        - 'false'
-        default: 'false'
 
 jobs:
   call-windows-workflow:
@@ -52,10 +44,8 @@ jobs:
       username: ${{ github.event.inputs.username }}
       region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
-      backup_enabled: ${{ github.event.inputs.backup_enabled }}
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-      GDRIVE_SERVICE_ACCOUNT_KEY: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_KEY }}
 
   call-macos-workflow:
     if: ${{ github.event.inputs.os == 'macos-latest' }}
@@ -64,10 +54,8 @@ jobs:
       username: ${{ github.event.inputs.username }}
       region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
-      backup_enabled: ${{ github.event.inputs.backup_enabled }}
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-      GDRIVE_SERVICE_ACCOUNT_KEY: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_KEY }}
 
   call-ubuntu-workflow:
     if: ${{ github.event.inputs.os == 'ubuntu-latest' }}
@@ -76,7 +64,5 @@ jobs:
       username: ${{ github.event.inputs.username }}
       region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
-      backup_enabled: ${{ github.event.inputs.backup_enabled }}
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-      GDRIVE_SERVICE_ACCOUNT_KEY: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_KEY }}
