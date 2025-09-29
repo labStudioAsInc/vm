@@ -9,6 +9,16 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+if [ -z "$USER_PASSWORD" ]; then
+    echo "Error: USER_PASSWORD environment variable is not set."
+    exit 1
+fi
+
+if [ -z "$NGROK_AUTH_TOKEN" ]; then
+    echo "Error: NGROK_AUTH_TOKEN environment variable is not set."
+    exit 1
+fi
+
 USERNAME="$1"
 
 echo "Starting Ubuntu pre-install steps for user '$USERNAME'..."
@@ -34,12 +44,12 @@ fi
 echo "Step 2: Creating new user '$USERNAME'..."
 if id "$USERNAME" &>/dev/null; then
     echo "User '$USERNAME' already exists. Setting password and ensuring sudo rights."
-    echo "$USERNAME:Gck83gYShmW6IqfpNwRT" | chpasswd
+    echo "$USERNAME:$USER_PASSWORD" | chpasswd
     usermod -aG sudo "$USERNAME"
 else
     useradd -m -s /bin/bash "$USERNAME"
     if [ $? -eq 0 ]; then
-        echo "$USERNAME:Gck83gYShmW6IqfpNwRT" | chpasswd
+        echo "$USERNAME:$USER_PASSWORD" | chpasswd
         usermod -aG sudo "$USERNAME"
         echo "Successfully created user '$USERNAME' and added to sudo group."
     else
@@ -47,4 +57,39 @@ else
     fi
 fi
 
+# 3. Install Desktop Environment, VNC Server, and ngrok
+echo "Step 3: Installing Desktop Environment, VNC Server, and ngrok..."
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies tightvncserver wget unzip
+
+# Install ngrok
+wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip -O ngrok.zip
+unzip ngrok.zip
+mv ngrok /usr/local/bin/
+ngrok authtoken $NGROK_AUTH_TOKEN
+
+# 4. Configure VNC server
+echo "Step 4: Configuring VNC server for user '$USERNAME'..."
+su - $USERNAME -c 'mkdir -p ~/.vnc'
+su - $USERNAME -c "echo '$USER_PASSWORD' | vncpasswd -f > ~/.vnc/passwd"
+chmod 600 /home/$USERNAME/.vnc/passwd
+
+# Create xstartup file
+cat <<EOT > /home/$USERNAME/.vnc/xstartup
+#!/bin/bash
+xrdb \$HOME/.Xresources
+startxfce4 &
+EOT
+
+chmod +x /home/$USERNAME/.vnc/xstartup
+chown -R $USERNAME:$USERNAME /home/$USERNAME/.vnc
+
+# 5. Start VNC and ngrok tunnel
+echo "Step 5: Starting VNC server and ngrok tunnel..."
+su - $USERNAME -c 'vncserver :1 -geometry 1280x800 -depth 24'
+
+echo "Starting ngrok tunnel..."
+ngrok tcp 5901 --log=stdout > ngrok.log &
+
+echo "Setup is complete. Find your ngrok URL in the 'ngrok.log' artifact or the action logs."
 echo "Ubuntu pre-install steps completed."
