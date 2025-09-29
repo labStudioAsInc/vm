@@ -2,19 +2,46 @@
 
 This repository contains scripts for the initial setup and configuration of servers for various operating systems. These scripts are designed to automate the pre-installation process, ensuring a consistent and reliable environment for our applications.
 
-## Available OS Images
+## Available Images
 
-- Windows Server 2025
-- Ubuntu 24
-- macOS 26
+| Image | YAML Label | Included Software |
+| --------------------|---------------------|--------------------|
+| Ubuntu 24.04 | `ubuntu-latest` or `ubuntu-24.04` | [ubuntu-24.04] |
+| Ubuntu 22.04 | `ubuntu-22.04` | [ubuntu-22.04] |
+| macOS 26 Arm64 `beta` | `macos-26` or `macos-26-xlarge` | [macOS-26-arm64] |
+| macOS 15 | `macos-latest-large`, `macos-15-large`, or `macos-15-intel` | [macOS-15] |
+| macOS 15 Arm64 | `macos-latest`, `macos-15`, or `macos-15-xlarge` | [macOS-15-arm64] |
+| macOS 14 | `macos-14-large`| [macOS-14] |
+| macOS 14 Arm64 | `macos-14` or `macos-14-xlarge`| [macOS-14-arm64] |
+| macOS 13 ![Deprecated](https://img.shields.io/badge/-Deprecated-red) | `macos-13` or `macos-13-large` | [macOS-13] |
+| macOS 13 Arm64 ![Deprecated](https://img.shields.io/badge/-Deprecated-red) | `macos-13-xlarge` | [macOS-13-arm64] |
+| Windows Server 2025 | `windows-2025` | [windows-2025] |
+| Windows Server 2022 | `windows-latest` or `windows-2022` | [windows-2022] |
+| Windows Server 2019 ![Deprecated](https://img.shields.io/badge/-Deprecated-red) | `windows-2019` | [windows-2019] |
 
 ## System Configuration
 
-| OS | CPU | RAM | Storage |
+The hardware specifications for GitHub-hosted runners vary depending on whether the repository is public or private.
+
+### Standard Runners for Public Repositories
+
+| Virtual Machine | Processor (CPU) | Memory (RAM) | Storage (SSD) |
 | :--- | :--- | :--- | :--- |
-| Windows Server 2025 | 4 Cores | 16 GB | 256 GB SSD |
-| Ubuntu 24 | 4 Cores | 16 GB | 256 GB SSD |
-| macOS 26 | 4 Cores | 16 GB | 256 GB SSD |
+| Linux | 4 Cores | 16 GB | 14 GB |
+| Windows | 4 Cores | 16 GB | 14 GB |
+| macOS (Intel) | 4 Cores | 14 GB | 14 GB |
+| macOS (ARM, M1) | 3 Cores | 7 GB | 14 GB |
+
+### Standard Runners for Private Repositories
+
+| Virtual Machine | Processor (CPU) | Memory (RAM) | Storage (SSD) |
+| :--- | :--- | :--- | :--- |
+| Linux | 2 Cores | 7 GB | 14 GB |
+| Windows | 2 Cores | 7 GB | 14 GB |
+| macOS (Intel) | 4 Cores | 14 GB | 14 GB |
+| macOS (ARM, M1) | 3 Cores | 7 GB | 14 GB |
+
+*Note: The `large` and `xlarge` runners listed in the "Available Images" table have different specifications. For more details, please refer to the official [GitHub Larger Runners documentation](https://docs.github.com/en/actions/using-github-hosted-runners/about-larger-runners).*
 
 ## Pre-installed Software and Configurations
 
