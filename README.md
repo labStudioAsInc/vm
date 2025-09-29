@@ -3,12 +3,17 @@
 
 <div align="center">
   
-  # VM with GitHub Actions
+# VM with GitHub Actions
 
 **This repository contains scripts and workflows for the initial setup of Github Runner VMs and configuration of servers for various operating systems. These scripts are designed to automate the pre-installation process, ensuring a consistent and reliable environment for our applications.**
 
+[Overview](#overview) • [How it works](#how-it-works) • [Installation](#installation) • [How to use](#how-to-use) • [Secrets Configuration](#secrets-configuration)
+
 </div> </div>
 
+## <a name="overview"></a>Overview
+
+This project leverages GitHub Actions to provide you with a temporary, free virtual machine. The workflows and scripts in this repository automate the initial setup of GitHub Runner VMs, including the configuration of servers for Windows, macOS, and Ubuntu.
 
 ## How it works
 
@@ -16,7 +21,7 @@ This project leverages GitHub Actions to provide you with a temporary, free virt
 
 1.  **Triggering the Action**: When you run a workflow in the "Actions" tab, GitHub provisions a fresh virtual machine (VM) with the operating system you choose (Windows, Ubuntu, or macOS).
 2.  **Running the Script**: The action then executes one of the pre-installation scripts from this repository on the new VM.
-3.  **Setting up Remote Access**: The script installs the necessary software for remote access (RDP for Windows, VNC for macOS/Ubuntu) and creates a new user account with the password you provide in the `USER_PASSWORD` secret.
+3.  **Setting up Remote Access**: The script installs the necessary software for remote access (RDP for Windows/Ubuntu, VNC for macOS) and creates a new user account with the password you provide in the `USER_PASSWORD` secret.
 4.  **Creating a Secure Tunnel**: The script then installs `ngrok` and uses your `NGROK_AUTH_TOKEN` to create a secure tunnel from the public internet to the remote desktop port on the VM.
 5.  **Accessing the VM**: The unique ngrok URL for your session is printed in the GitHub Actions logs. You can use this URL with any standard RDP or VNC client to connect to your temporary VM.
 
@@ -28,9 +33,31 @@ Since the VM is part of a GitHub Actions job, it is temporary and will be destro
 2.  **Add secrets**: Go to your forked repository's `Settings` > `Secrets and variables` > `Actions` and add the necessary secrets as described in the "Secrets Configuration" section below.
 3.  **Run workflow**: Go to the "Actions" tab of your repository, select the desired workflow, and run it.
 
-## Secrets Configuration
+## <a name="how-to-use"></a>How to use
 
-The following secrets must be added to your repository for the scripts to function correctly.
+Once the GitHub Actions workflow is running, you need to find the connection details from the logs and use a remote desktop client to connect.
+
+**Step 1: Get Connection Details from Workflow Logs** 🚶‍♀️
+1.  Go to the **Actions** tab in your repository and click on the running workflow.
+2.  Look for the **Display Connection Details** step in the logs.
+3.  You will find the connection address (e.g., `0.tcp.ngrok.io`) and port (e.g., `12345`).
+
+**Step 2: Connect to the VM** 🚶‍♀️
+You will need a remote desktop client to connect to the VM.
+
+*   **For RDP (Windows & Ubuntu):**
+    *   We recommend using the [Microsoft Remote Desktop](https://play.google.com/store/apps/details?id=com.microsoft.rdc.androidx) client.
+    *   Enter the address and port from the logs.
+    *   Use the username you provided and the password you set in the `USER_PASSWORD` secret.
+
+*   **For VNC (macOS):**
+    *   We recommend using the [VNC Viewer](https://play.google.com/store/apps/details?id=com.realvnc.viewer.android) client.
+    *   Enter the address and port from the logs.
+    *   Use the username you provided and the password you set in the `USER_PASSWORD` secret.
+
+## <a name="secrets-configuration"></a>Secrets Configuration
+
+The following secrets must be added to your repository for the scripts to function correctly. We are using "USER_PASSWORD" as a GitHub environment secret.
 
 | Secret | Description | Example |
 | :--- | :--- | :--- |
@@ -87,18 +114,6 @@ The following table details the software and configurations that are pre-install
 | **macOS** | - **BlackHole 2ch**: A virtual audio driver for routing audio between applications. <br> - **New Admin User**: A new user account with administrative privileges is created. <br> - **Remote Management**: Screen sharing and remote management are enabled for the new user. |
 | **Ubuntu** | - **snd-aloop**: A kernel module for creating loopback audio devices. <br> - **New Sudo User**: A new user account with `sudo` privileges is created. |
 | **Windows** | - **VB-CABLE**: A virtual audio cable for routing audio. <br> - **New Admin User**: A new user account is created and added to the Administrators group. <br> - **Windows Audio Services**: The `Audiosrv` and `AudioEndpointBuilder` services are enabled and started. <br> - **RDP Audio Redirection**: Group policies are configured to allow audio capture over RDP. <br> - **Google Chrome**: Set as the default web browser. |
-
-## Connecting to your VM
-
-Once the GitHub Actions workflow is running, you need to find the connection details from the logs.
-
-1.  **Open the workflow logs**: Go to the "Actions" tab in your repository and click on the running workflow.
-2.  **Find the ngrok URL**: Look through the logs for lines that look like `url=tcp://0.tcp.ngrok.io:12345`. This is your connection address.
-3.  **Connect using an RDP or VNC client**:
-    *   **Windows (RDP)**: Use a Remote Desktop client with the address and port provided by ngrok (e.g., `0.tcp.ngrok.io` and port `12345`).
-    *   **Ubuntu/macOS (VNC)**: Use a VNC client (like RealVNC, TightVNC, or Screen Sharing on macOS) to connect to the address and port provided by ngrok.
-
-Your username is the one you provided during the setup, and the password is the one you set in the `USER_PASSWORD` secret.
 
 ---
 

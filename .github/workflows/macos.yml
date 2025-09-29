@@ -18,6 +18,8 @@ on:
     secrets:
       NGROK_AUTH_TOKEN:
         required: true
+      USER_PASSWORD:
+        required: true
 
 jobs:
   rdp-session:
@@ -29,6 +31,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run pre-install script
+        env:
+          USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
         run: |
           chmod +x ./scripts/preinstall-mac.sh
           ./scripts/preinstall-mac.sh "${{ inputs.username }}"
@@ -92,7 +96,7 @@ jobs:
           echo "Address: ${{ env.RDP_ADDRESS }}"
           echo "Port: ${{ env.RDP_PORT }}"
           echo "Username: ${{ inputs.username }}"
-          echo "Password: Gck83gYShmW6IqfpNwRT"
+          echo "Password: ${{ secrets.USER_PASSWORD }}"
           echo "=========================================="
           echo "Connection string: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
         shell: bash
