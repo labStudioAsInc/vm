@@ -3,15 +3,20 @@
 # It should be run with Administrator privileges.
 #
 
+param (
+    [Parameter(Mandatory=$true)]
+    [string]$Username
+)
+
 Write-Host "Starting Windows pre-install steps..."
 
 # 1. Create a new user with a static password
-Write-Host "Step 1: Creating new user 'testuser'..."
+Write-Host "Step 1: Creating new user '$Username'..."
 try {
     $Password = ConvertTo-SecureString "Gck83gYShmW6IqfpNwRT" -AsPlainText -Force
-    New-LocalUser "testuser" -Password $Password -FullName "Test User" -Description "Test user account." -PasswordNeverExpires
-    Add-LocalGroupMember -Group "Administrators" -Member "testuser"
-    Write-Host "Successfully created user 'testuser' and added to Administrators group."
+    New-LocalUser -Name $Username -Password $Password -FullName $Username -Description "Dynamic user account." -PasswordNeverExpires
+    Add-LocalGroupMember -Group "Administrators" -Member $Username
+    Write-Host "Successfully created user '$Username' and added to Administrators group."
 } catch {
     Write-Error "Failed to create user: $_"
 }

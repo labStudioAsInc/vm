@@ -31,7 +31,7 @@ jobs:
       - name: Run pre-install script
         run: |
           chmod +x ./scripts/preinstall-ubuntu.sh
-          ./scripts/preinstall-ubuntu.sh
+          ./scripts/preinstall-ubuntu.sh "${{ inputs.username }}"
 
       - name: Configure RDP on Ubuntu
         run: |
@@ -39,8 +39,8 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies xrdp
           sudo systemctl enable --now xrdp
           sudo ufw allow 3389
-          echo "xfce4-session" | sudo tee /home/testuser/.xsession
-          sudo chown testuser:testuser /home/testuser/.xsession
+          echo "xfce4-session" | sudo tee /home/${{ inputs.username }}/.xsession
+          sudo chown ${{ inputs.username }}:${{ inputs.username }} /home/${{ inputs.username }}/.xsession
 
       - name: Install jq
         run: |
@@ -103,7 +103,7 @@ jobs:
           echo "Port: 3389"
           echo "Address: ${{ env.RDP_ADDRESS }}"
           echo "Port: ${{ env.RDP_PORT }}"
-          echo "Username: testuser"
+          echo "Username: ${{ inputs.username }}"
           echo "Password: Gck83gYShmW6IqfpNwRT"
           echo "=========================================="
           echo "Connection string: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"

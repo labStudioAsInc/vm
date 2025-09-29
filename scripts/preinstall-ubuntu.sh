@@ -4,7 +4,14 @@
 # It should be run with sudo privileges.
 #
 
-echo "Starting Ubuntu pre-install steps..."
+if [ -z "$1" ]; then
+    echo "Error: Username must be provided as the first argument."
+    exit 1
+fi
+
+USERNAME="$1"
+
+echo "Starting Ubuntu pre-install steps for user '$USERNAME'..."
 
 # 1. Install and load snd-aloop module for virtual audio
 echo "Step 1: Setting up virtual audio..."
@@ -24,19 +31,19 @@ else
 fi
 
 # 2. Create a new user with a static password and sudo rights
-echo "Step 2: Creating new user 'testuser'..."
-if id "testuser" &>/dev/null; then
-    echo "User 'testuser' already exists. Setting password and ensuring sudo rights."
-    echo "testuser:Gck83gYShmW6IqfpNwRT" | chpasswd
-    usermod -aG sudo testuser
+echo "Step 2: Creating new user '$USERNAME'..."
+if id "$USERNAME" &>/dev/null; then
+    echo "User '$USERNAME' already exists. Setting password and ensuring sudo rights."
+    echo "$USERNAME:Gck83gYShmW6IqfpNwRT" | chpasswd
+    usermod -aG sudo "$USERNAME"
 else
-    useradd -m -s /bin/bash testuser
+    useradd -m -s /bin/bash "$USERNAME"
     if [ $? -eq 0 ]; then
-        echo "testuser:Gck83gYShmW6IqfpNwRT" | chpasswd
-        usermod -aG sudo testuser
-        echo "Successfully created user 'testuser' and added to sudo group."
+        echo "$USERNAME:Gck83gYShmW6IqfpNwRT" | chpasswd
+        usermod -aG sudo "$USERNAME"
+        echo "Successfully created user '$USERNAME' and added to sudo group."
     else
-        echo "Error: Failed to create user 'testuser'."
+        echo "Error: Failed to create user '$USERNAME'."
     fi
 fi
 

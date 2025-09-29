@@ -31,10 +31,7 @@ jobs:
       - name: Run pre-install script
         run: |
           chmod +x ./scripts/preinstall-mac.sh
-          ./scripts/preinstall-mac.sh
-
-      - name: Dummy Step
-        run: echo "User creation and VNC setup is now handled by the pre-install script."
+          ./scripts/preinstall-mac.sh "${{ inputs.username }}"
 
       - name: Install jq
         run: |
@@ -94,7 +91,7 @@ jobs:
           echo "Port: 5900"
           echo "Address: ${{ env.RDP_ADDRESS }}"
           echo "Port: ${{ env.RDP_PORT }}"
-          echo "Username: testuser"
+          echo "Username: ${{ inputs.username }}"
           echo "Password: Gck83gYShmW6IqfpNwRT"
           echo "=========================================="
           echo "Connection string: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"

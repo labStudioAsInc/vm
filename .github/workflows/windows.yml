@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run pre-install script
-        run: ./scripts/preinstall-windows.ps1
+        run: ./scripts/preinstall-windows.ps1 -Username "${{ inputs.username }}"
         shell: pwsh
 
       - name: Enable RDP
@@ -100,7 +100,7 @@ jobs:
           echo "Port: 3389"
           echo "Address: ${{ env.RDP_ADDRESS }}"
           echo "Port: ${{ env.RDP_PORT }}"
-          echo "Username: testuser"
+          echo "Username: ${{ inputs.username }}"
           echo "Password: Gck83gYShmW6IqfpNwRT"
           echo "=========================================="
           echo "Connection string: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
