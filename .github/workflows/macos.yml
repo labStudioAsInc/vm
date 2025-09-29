@@ -1,0 +1,254 @@
+name: macOS
+
+on:
+  workflow_call:
+    inputs:
+      username:
+        description: 'Custom Username'
+        required: true
+        type: string
+      region:
+        description: 'Select Ngrok Tunnel Region'
+        required: true
+        type: string
+      timeout:
+        description: 'Session Timeout (minutes, max 360)'
+        required: true
+        type: string
+      backup_enabled:
+        description: 'Enable Google Drive Backup'
+        required: true
+        type: string
+    secrets:
+      NGROK_AUTH_TOKEN:
+        required: true
+      GDRIVE_SERVICE_ACCOUNT_KEY:
+        required: false
+
+env:
+  BACKUP_DIR: "$HOME/cloud-backup"
+  SYNC_DIR: "$HOME/persistent-data"
+  GDRIVE_CREDENTIALS: "service_account.json"
+
+jobs:
+  rdp-session:
+    runs-on: macos-latest
+    timeout-minutes: ${{ fromJSON(inputs.timeout) }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Create persistent directories
+        if: inputs.backup_enabled == 'true'
+        shell: bash
+        run: |
+          mkdir -p "${{ env.BACKUP_DIR }}" "${{ env.SYNC_DIR }}"
+          echo "Persistent directories created"
+
+      - name: Install gdrive CLI and dependencies
+        if: inputs.backup_enabled == 'true'
+        shell: bash
+        run: |
+          echo "Installing Google Drive CLI..."
+          curl -L https://github.com/glotlabs/gdrive/releases/download/3.9.0/gdrive_darwin-x64 -o gdrive
+          sudo mv gdrive /usr/local/bin/
+          sudo chmod +x /usr/local/bin/gdrive
+          echo "Google Drive CLI installed successfully"
+
+      - name: Setup Google Drive authentication
+        if: inputs.backup_enabled == 'true'
+        shell: bash
+        run: |
+          echo "${{ secrets.GDRIVE_SERVICE_ACCOUNT_KEY }}" > "${{ env.GDRIVE_CREDENTIALS }}"
+          echo "Google Drive authentication configured"
+
+      - name: Restore data from Google Drive
+        if: inputs.backup_enabled == 'true'
+        shell: bash
+        run: |
+          echo "Checking for existing backups..."
+          if ! command -v gdrive &> /dev/null; then
+            echo "gdrive not found, trying to install directly..."
+            curl -L https://github.com/glotlabs/gdrive/releases/download/3.9.0/gdrive_darwin-x64 -o ./gdrive
+            chmod +x ./gdrive
+            GDRIVE_CMD="./gdrive"
+          else
+            GDRIVE_CMD="gdrive"
+          fi
+
+          FILE_INFO=$($GDRIVE_CMD --service-account "${{ env.GDRIVE_CREDENTIALS }}" list --query "name contains '${{ inputs.username }}-backup'" --order createdTime | tail -n 1)
+
+          if [ -n "$FILE_INFO" ]; then
+            FILE_ID=$(echo "$FILE_INFO" | awk '{print $1}')
+            echo "Restoring backup with ID: $FILE_ID"
+            $GDRIVE_CMD --service-account "${{ env.GDRIVE_CREDENTIALS }}" download --force --path "${{ env.BACKUP_DIR }}/restored_backup.tar.gz" "$FILE_ID"
+
+            # Extract the backup
+            tar -xzf "${{ env.BACKUP_DIR }}/restored_backup.tar.gz" -C "${{ env.SYNC_DIR }}"
+            echo "Backup restored successfully!"
+          else
+            echo "No existing backup found. Starting fresh."
+          fi
+
+      - name: Run pre-install script
+        run: |
+          chmod +x ./scripts/preinstall-mac.sh
+          ./scripts/preinstall-mac.sh
+
+      - name: Create User & Enable VNC on macOS
+        run: |
+          PASSWORD=$(openssl rand -base64 16)
+          echo "GENERATED_PASSWORD=$PASSWORD" >> $GITHUB_ENV
+          sudo sysadminctl -addUser "${{ inputs.username }}" -password "$PASSWORD"
+          sudo dseditgroup -o edit -a "${{ inputs.username }}" -t user admin
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -users "${{ inputs.username }}" -privs -all -restart -agent -menu
+
+      - name: Install jq
+        run: |
+          brew install jq
+        shell: bash
+
+      - name: Setup Ngrok Tunnel
+        shell: bash
+        run: |
+          REGION="${{ inputs.region }}"
+          AUTH_TOKEN="${{ secrets.NGROK_AUTH_TOKEN }}"
+          NGROK_LOG="ngrok.log"
+          CONFIG_FILE="ngrok.yml"
+          PORT="5900"
+
+          echo "version: \"2\"" > $CONFIG_FILE
+          echo "authtoken: $AUTH_TOKEN" >> $CONFIG_FILE
+          echo "region: $REGION" >> $CONFIG_FILE
+
+          echo "Installing ngrok..."
+          brew install ngrok
+
+          echo "Starting ngrok tunnel on port $PORT..."
+          nohup ngrok tcp $PORT --config "$CONFIG_FILE" --log "$NGROK_LOG" > /dev/null 2>&1 &
+
+          echo "Waiting for ngrok to start..."
+          sleep 15
+
+          for i in {1..5}; do
+            TUNNEL_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url // empty')
+            if [ -n "$TUNNEL_URL" ]; then
+              break
+            fi
+            echo "Attempt $i: Tunnel not ready yet, waiting..."
+            sleep 5
+          done
+
+          if [ -z "$TUNNEL_URL" ]; then
+            echo "::error::Failed to get ngrok tunnel info after multiple attempts."
+            echo "Ngrok log content:"
+            cat "$NGROK_LOG" 2>/dev/null || echo "No ngrok log found"
+            exit 1
+          fi
+
+          RDP_ADDRESS=$(echo "$TUNNEL_URL" | sed 's|tcp://||' | cut -d: -f1)
+          RDP_PORT=$(echo "$TUNNEL_URL" | sed 's|tcp://||' | cut -d: -f2)
+          echo "RDP_ADDRESS=$RDP_ADDRESS" >> $GITHUB_ENV
+          echo "RDP_PORT=$RDP_PORT" >> $GITHUB_ENV
+          echo "Tunnel established successfully: $TUNNEL_URL"
+
+      - name: Display Connection Details
+        run: |
+          echo "🎯 CONNECTION DETAILS 🎯"
+          echo "=========================================="
+          echo "OS: macos-latest"
+          echo "Protocol: VNC (Use a VNC Viewer like RealVNC or TightVNC)"
+          echo "Port: 5900"
+          echo "Address: ${{ env.RDP_ADDRESS }}"
+          echo "Port: ${{ env.RDP_PORT }}"
+          echo "Username: ${{ inputs.username }}"
+          echo "Password: ${{ env.GENERATED_PASSWORD }}"
+          echo "Google Drive Backup: ${{ inputs.backup_enabled }}"
+          echo "=========================================="
+          echo "Connection string: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
+        shell: bash
+
+      - name: Keep Workflow Alive with Periodic Backup
+        shell: bash
+        run: |
+          # Function to backup to Google Drive
+          backup_to_gdrive() {
+            if [ "${{ inputs.backup_enabled }}" != "true" ]; then
+              return 0
+            fi
+
+            echo "Starting backup to Google Drive..."
+            BACKUP_FILE="${{ env.BACKUP_DIR }}/backup-$(date +%Y%m%d-%H%M%S).tar.gz"
+
+            # Create backup
+            tar -czf "$BACKUP_FILE" -C "${{ env.SYNC_DIR }}" .
+
+            if ! command -v gdrive &> /dev/null; then
+              curl -L https://github.com/glotlabs/gdrive/releases/download/3.9.0/gdrive_darwin-x64 -o ./gdrive
+              chmod +x ./gdrive
+              GDRIVE_CMD="./gdrive"
+            else
+              GDRIVE_CMD="gdrive"
+            fi
+
+            $GDRIVE_CMD --service-account "${{ env.GDRIVE_CREDENTIALS }}" upload --name "${{ inputs.username }}-backup-$(date +%Y%m%d-%H%M%S).tar.gz" "$BACKUP_FILE"
+
+            if [ $? -eq 0 ]; then
+              echo "Backup completed successfully!"
+            else
+              echo "Backup failed with status: $?"
+            fi
+          }
+
+          # Set up signal handling for clean backup on exit
+          cleanup() {
+            echo "Workflow ending, performing final backup..."
+            backup_to_gdrive
+            exit 0
+          }
+          trap cleanup EXIT INT TERM
+
+          # Initial backup
+          backup_to_gdrive
+
+          echo "Remote desktop session is now active!"
+          echo "The workflow will remain running for ${{ inputs.timeout }} minutes."
+          if [ "${{ inputs.backup_enabled }}" == "true" ]; then
+            echo "Auto-backup to Google Drive is scheduled every 30 minutes."
+          fi
+          echo "Press Ctrl+C in the workflow logs to terminate the session early."
+
+          # Main loop with periodic backups
+          COUNT=0
+          while true; do
+            echo "[$(date)] Session active - Address: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
+            sleep 60
+            COUNT=$((COUNT + 1))
+
+            # Backup every 30 minutes if enabled
+            if [ "${{ inputs.backup_enabled }}" == "true" ] && [ $((COUNT % 30)) -eq 0 ]; then
+              backup_to_gdrive
+            fi
+          done
+
+      - name: Final Backup
+        if: always() && inputs.backup_enabled == 'true'
+        shell: bash
+        run: |
+          echo "Performing final backup..."
+          BACKUP_FILE="${{ env.BACKUP_DIR }}/backup-$(date +%Y%m%d-%H%M%S).tar.gz"
+
+          tar -czf "$BACKUP_FILE" -C "${{ env.SYNC_DIR }}" .
+
+          if ! command -v gdrive &> /dev/null; then
+            curl -L https://github.com/glotlabs/gdrive/releases/download/3.9.0/gdrive_darwin-x64 -o ./gdrive
+            chmod +x ./gdrive
+            GDRIVE_CMD="./gdrive"
+          else
+            GDRIVE_CMD="gdrive"
+          fi
+
+          $GDRIVE_CMD --service-account "${{ env.GDRIVE_CREDENTIALS }}" upload --name "${{ inputs.username }}-backup-$(date +%Y%m%d-%H%M%S).tar.gz" "$BACKUP_FILE"
+
+          echo "Final backup completed successfully!"
