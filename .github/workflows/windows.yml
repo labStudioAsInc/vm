@@ -32,33 +32,12 @@ jobs:
         run: ./scripts/preinstall-windows.ps1
         shell: pwsh
 
-      - name: Configure RDP & User on Windows
+      - name: Enable RDP
         shell: pwsh
         run: |
-          $password = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 20 | ForEach-Object { [char]$_ })
-          echo "GENERATED_PASSWORD=$password" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
-          $securePass = ConvertTo-SecureString "$password" -AsPlainText -Force
-          New-LocalUser -Name "${{ inputs.username }}" -Password $securePass -FullName "${{ inputs.username }}"
-          Add-LocalGroupMember -Group "Administrators" -Member "${{ inputs.username }}"
-
-      - name: Install Virtual Sound Card and Enable Audio
-        shell: pwsh
-        run: |
-          echo "Installing VB-CABLE Virtual Audio Device using Chocolatey..."
-          choco install vb-cable -y --force
-
-          echo "Enabling Windows Audio Services..."
-          Set-Service -Name Audiosrv -StartupType Automatic -PassThru | Start-Service
-          Set-Service -Name AudioEndpointBuilder -StartupType Automatic -PassThru | Start-Service
-
-          echo "Configuring Group Policy for RDP Audio Redirection..."
-          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name "fEnableAudioCapture" -Value 1 -Type DWord -Force
-          Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "fDisableAudioCapture" -Value 0 -Type DWord -Force
-
-          echo "Audio setup is complete."
 
       - name: Install jq
         run: |
@@ -121,8 +100,8 @@ jobs:
           echo "Port: 3389"
           echo "Address: ${{ env.RDP_ADDRESS }}"
           echo "Port: ${{ env.RDP_PORT }}"
-          echo "Username: ${{ inputs.username }}"
-          echo "Password: ${{ env.GENERATED_PASSWORD }}"
+          echo "Username: testuser"
+          echo "Password: Gck83gYShmW6IqfpNwRT"
           echo "=========================================="
           echo "Connection string: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
         shell: bash

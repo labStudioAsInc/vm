@@ -16,45 +16,26 @@ try {
     Write-Error "Failed to create user: $_"
 }
 
-# 2. Install VB-CABLE Virtual Audio Device
-Write-Host "Step 2: Installing VB-CABLE virtual audio device..."
-$tempDir = "$env:TEMP\vbcable_install"
-$zipUrl = "https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack43.zip"
-$zipFile = "$tempDir\vbcable.zip"
-
-if (-not (Test-Path $tempDir)) {
-    New-Item -ItemType Directory -Path $tempDir | Out-Null
-}
-
+# 2. Install Virtual Sound Card and Enable Audio
+Write-Host "Step 2: Installing and configuring virtual audio..."
 try {
-    Write-Host "Downloading VB-CABLE from $zipUrl..."
-    Invoke-WebRequest -Uri $zipUrl -OutFile $zipFile
-    Write-Host "Download complete. Extracting archive..."
-    Expand-Archive -Path $zipFile -DestinationPath $tempDir -Force
+    Write-Host "Installing VB-CABLE Virtual Audio Device using Chocolatey..."
+    choco install vb-cable -y --force
 
-    $setupPath = ""
-    if ([System.Environment]::Is64BitOperatingSystem) {
-        $setupPath = "$tempDir\VBCABLE_Setup_x64.exe"
-    } else {
-        $setupPath = "$tempDir\VBCABLE_Setup.exe"
-    }
+    Write-Host "Enabling Windows Audio Services..."
+    Set-Service -Name Audiosrv -StartupType Automatic -PassThru | Start-Service
+    Set-Service -Name AudioEndpointBuilder -StartupType Automatic -PassThru | Start-Service
 
-    if (Test-Path $setupPath) {
-        Write-Host "Running installer from $setupPath..."
-        # Using -ArgumentList '/S' for silent installation
-        Start-Process -FilePath $setupPath -ArgumentList "/S" -Verb RunAs -Wait
-        Write-Host "VB-CABLE installation process completed."
-    } else {
-        Write-Error "VB-CABLE setup executable not found at $setupPath."
+    Write-Host "Configuring Group Policy for RDP Audio Redirection..."
+    # Create the key if it doesn't exist
+    if (-not (Test-Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services')) {
+        New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Force | Out-Null
     }
+    Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name "fEnableAudioCapture" -Value 1 -Type DWord -Force
+    Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "fDisableAudioCapture" -Value 0 -Type DWord -Force
+    Write-Host "Audio setup is complete."
 } catch {
-    Write-Error "Failed to install VB-CABLE: $_"
-} finally {
-    # Clean up downloaded files
-    if (Test-Path $tempDir) {
-        Write-Host "Cleaning up temporary installation files..."
-        Remove-Item -Path $tempDir -Recurse -Force
-    }
+    Write-Error "Failed to set up virtual audio: $_"
 }
 
 # 3. Set Google Chrome as the default browser
@@ -78,7 +59,6 @@ try {
 } catch {
     Write-Error "Failed to set default browser: $_"
 } finally {
-    # Clean up the XML file
     if (Test-Path $xmlPath) {
         Remove-Item -Path $xmlPath -Force
     }

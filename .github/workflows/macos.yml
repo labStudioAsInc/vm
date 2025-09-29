@@ -33,13 +33,8 @@ jobs:
           chmod +x ./scripts/preinstall-mac.sh
           ./scripts/preinstall-mac.sh
 
-      - name: Create User & Enable VNC on macOS
-        run: |
-          PASSWORD=$(openssl rand -base64 16)
-          echo "GENERATED_PASSWORD=$PASSWORD" >> $GITHUB_ENV
-          sudo sysadminctl -addUser "${{ inputs.username }}" -password "$PASSWORD"
-          sudo dseditgroup -o edit -a "${{ inputs.username }}" -t user admin
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -users "${{ inputs.username }}" -privs -all -restart -agent -menu
+      - name: Dummy Step
+        run: echo "User creation and VNC setup is now handled by the pre-install script."
 
       - name: Install jq
         run: |
@@ -99,8 +94,8 @@ jobs:
           echo "Port: 5900"
           echo "Address: ${{ env.RDP_ADDRESS }}"
           echo "Port: ${{ env.RDP_PORT }}"
-          echo "Username: ${{ inputs.username }}"
-          echo "Password: ${{ env.GENERATED_PASSWORD }}"
+          echo "Username: testuser"
+          echo "Password: Gck83gYShmW6IqfpNwRT"
           echo "=========================================="
           echo "Connection string: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
         shell: bash
