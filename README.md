@@ -27,19 +27,19 @@ The hardware specifications for GitHub-hosted runners vary depending on whether 
 
 | Virtual Machine | Processor (CPU) | Memory (RAM) | Storage (SSD) |
 | :--- | :--- | :--- | :--- |
-| Linux | 4 Cores | 16 GB | 14 GB |
-| Windows | 4 Cores | 16 GB | 14 GB |
-| macOS (Intel) | 4 Cores | 14 GB | 14 GB |
-| macOS (ARM, M1) | 3 Cores | 7 GB | 14 GB |
+| Linux | 4 Cores | 16 GB | ≈ 250 GB |
+| Windows | 4 Cores | 16 GB | ≈ 250 GB |
+| macOS (Intel) | 4 Cores | 14 GB | ≈ 250 GB |
+| macOS (ARM, M1) | 3 Cores | 7 GB | ≈ 250 GB |
 
 ### Standard Runners for Private Repositories
 
 | Virtual Machine | Processor (CPU) | Memory (RAM) | Storage (SSD) |
 | :--- | :--- | :--- | :--- |
-| Linux | 2 Cores | 7 GB | 14 GB |
-| Windows | 2 Cores | 7 GB | 14 GB |
-| macOS (Intel) | 4 Cores | 14 GB | 14 GB |
-| macOS (ARM, M1) | 3 Cores | 7 GB | 14 GB |
+| Linux | 2 Cores | 7 GB | ≈ 250 GB |
+| Windows | 2 Cores | 7 GB | ≈ 250 GB |
+| macOS (Intel) | 4 Cores | 14 GB | ≈ 250 GB |
+| macOS (ARM, M1) | 3 Cores | 7 GB | ≈ 250 GB |
 
 *Note: The `large` and `xlarge` runners listed in the "Available Images" table have different specifications. For more details, please refer to the official [GitHub Larger Runners documentation](https://docs.github.com/en/actions/using-github-hosted-runners/about-larger-runners).*
 
