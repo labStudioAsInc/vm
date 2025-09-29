@@ -1,8 +1,16 @@
-# VM with GitHub Actions
+<div align="center">
+  <img src="https://i.postimg.cc/SxLbYS2C/20250929-143416.png" width="120" height="120" style="border-radius:50%">
 
-This repository contains scripts for the initial setup and configuration of servers for various operating systems. These scripts are designed to automate the pre-installation process, ensuring a consistent and reliable environment for our applications.
+<div align="center">
+  
+  # VM with GitHub Actions
 
-## How it Works
+**This repository contains scripts and workflows for the initial setup of Github Runner VMs and configuration of servers for various operating systems. These scripts are designed to automate the pre-installation process, ensuring a consistent and reliable environment for our applications.**
+
+</div> </div>
+
+
+## How it works
 
 This project leverages GitHub Actions to provide you with a temporary, free virtual machine. Here's the basic workflow:
 
@@ -103,8 +111,3 @@ Your username is the one you provided during the setup, and the password is the 
 | **Usage Limits (Free Tier)** | - **Public Repositories**: Unlimited minutes/month. <br> - **Private Repositories**: 2000 minutes/month. <br> *(These limits may be higher on paid tiers)*. |
 
 **Do not use these VMs for mining cryptocurrency, gaming, or any other unethical tasks. Your GitHub account may be flagged or permanently suspended.**
-
----
-
-*This repository is maintained by StudioAs Inc.*
-*aiaccess.pro*
