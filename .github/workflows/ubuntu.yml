@@ -50,11 +50,11 @@ jobs:
         env:
           USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
           NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-          INSTALL_VIRTUAL_SOUND_CARD: ${{ inputs.install_virtual_sound_card }}
-          INSTALL_VSCODE: ${{ inputs.install_vscode }}
         run: |
           chmod +x ./scripts/preinstall-ubuntu.sh
-          ./scripts/preinstall-ubuntu.sh "${{ inputs.username }}"
+          ./scripts/preinstall-ubuntu.sh "${{ inputs.username }}" \
+            "${{ inputs.install_virtual_sound_card }}" \
+            "${{ inputs.install_vscode }}"
 
       - name: Configure RDP on Ubuntu
         run: |

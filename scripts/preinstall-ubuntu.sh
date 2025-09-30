@@ -15,6 +15,8 @@ if [ -z "$USER_PASSWORD" ]; then
 fi
 
 USERNAME="$1"
+INSTALL_VIRTUAL_SOUND_CARD="${2:-false}"
+INSTALL_VSCODE="${3:-false}"
 
 echo "Starting Ubuntu pre-install steps for user '$USERNAME'..."
 apt-get update
