@@ -7,6 +7,10 @@ on:
         description: 'Custom Username'
         required: true
         type: string
+      tunnel_provider:
+        description: 'Select Tunnel Provider'
+        required: true
+        type: string
       region:
         description: 'Select Ngrok Tunnel Region'
         required: true
@@ -17,6 +21,8 @@ on:
         type: string
     secrets:
       NGROK_AUTH_TOKEN:
+        required: true
+      CF_TUNNEL_TOKEN:
         required: true
       USER_PASSWORD:
         required: true
@@ -52,6 +58,7 @@ jobs:
         shell: bash
 
       - name: Setup Ngrok Tunnel
+        if: inputs.tunnel_provider == 'ngrok'
         shell: bash
         run: |
           REGION="${{ inputs.region }}"
@@ -96,7 +103,29 @@ jobs:
           echo "RDP_PORT=$RDP_PORT" >> $GITHUB_ENV
           echo "Tunnel established successfully: $TUNNEL_URL"
 
-      - name: Display Connection Details
+      - name: Setup Cloudflare Tunnel
+        if: inputs.tunnel_provider == 'cloudflare'
+        shell: bash
+        run: |
+          echo "Installing cloudflared..."
+          curl -L --output cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
+
+          echo "Starting cloudflare tunnel..."
+          CF_LOG="cloudflared.log"
+          TOKEN="${{ secrets.CF_TUNNEL_TOKEN }}"
+
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Cloudflare tunnel token is not set. Please set the CF_TUNNEL_TOKEN secret."
+            exit 1
+          fi
+
+          pwsh -Command "Start-Process -NoNewWindow -FilePath './cloudflared.exe' -ArgumentList 'tunnel', 'run', '--token', '$TOKEN' -RedirectStandardOutput $CF_LOG -RedirectStandardError $CF_LOG"
+
+          echo "Waiting for cloudflared to start..."
+          sleep 15
+
+      - name: Display Connection Details (Ngrok)
+        if: inputs.tunnel_provider == 'ngrok'
         run: |
           echo "🎯 CONNECTION DETAILS 🎯"
           echo "=========================================="
@@ -109,6 +138,21 @@ jobs:
           echo "Password: ${{ secrets.USER_PASSWORD }}"
           echo "=========================================="
           echo "Connection string: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
+        shell: bash
+
+      - name: Display Connection Details (Cloudflare)
+        if: inputs.tunnel_provider == 'cloudflare'
+        run: |
+          echo "🎯 CONNECTION DETAILS 🎯"
+          echo "=========================================="
+          echo "OS: windows-latest"
+          echo "Protocol: RDP (Use Remote Desktop Connection)"
+          echo "Address: Please check your Cloudflare dashboard for your tunnel hostname."
+          echo "Username: ${{ inputs.username }}"
+          echo "Password: ${{ secrets.USER_PASSWORD }}"
+          echo "=========================================="
+          echo "Cloudflared log:"
+          cat cloudflared.log 2>/dev/null || echo "No cloudflared log found"
         shell: bash
 
       - name: Keep Workflow Alive
