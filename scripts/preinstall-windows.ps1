@@ -12,7 +12,9 @@ param (
     [string]$InstallVoidEditor = 'false',
     [string]$InstallAndroidStudio = 'false',
     [string]$InstallVSCode = 'false',
+
     [string]$SetDefaultBrowser = 'none'
+
 )
 
 # Convert string parameters to booleans
