@@ -55,65 +55,49 @@ You will need a remote desktop client to connect to the VM.
     *   Enter the address and port from the logs.
     *   Use the username you provided and the password you set in the `USER_PASSWORD` secret.
 
+## <a name="workflow-inputs"></a>Workflow Inputs
+
+When running a workflow, you can customize the VM setup using the following inputs:
+
+| Input | Description | Type | Default |
+| :--- | :--- | :--- | :--- |
+| `username` | The username for the new user account. | `string` | **Required** |
+| `tunnel_provider` | The tunneling service to use. Can be `ngrok` or `cloudflare`. | `string` | `ngrok` |
+| `region` | The ngrok tunnel region to use (e.g., `us`, `eu`, `ap`). | `string` | `us` |
+| `timeout` | The session timeout in minutes (max 360). | `string` | `360` |
+| `install_virtual_sound_card` | Install a virtual sound card. | `boolean` | `false` |
+| `install_github_desktop` | Install GitHub Desktop (Windows/macOS only). | `boolean` | `false` |
+| `install_browseros` | Install BrowserOS (Windows only, placeholder). | `boolean` | `false` |
+| `install_void_editor` | Install Void Editor (Windows only, placeholder). | `boolean` | `false` |
+| `install_android_studio` | Install Android Studio (Windows only). | `boolean` | `false` |
+| `install_vscode` | Install Visual Studio Code. | `boolean` | `false` |
+| `set_default_browser` | Set the default browser (Windows only). Can be `chrome` or `browseros`. | `string` | `chrome` |
+
 ## <a name="secrets-configuration"></a>Secrets Configuration
 
 The following secrets must be added to your repository for the scripts to function correctly. We are using "USER_PASSWORD" as a GitHub environment secret.
 
 | Secret | Description | Example |
 | :--- | :--- | :--- |
-| `NGROK_AUTH_TOKEN` | **Required**. Your authentication token from the [ngrok dashboard](https://dashboard.ngrok.com/get-started/your-authtoken). This is needed to create the secure tunnel to your VM. | `2aBcDeFgHiJkLmNoPqRsTuVwXyZ_123456789` |
+| `NGROK_AUTH_TOKEN` | Your authentication token from the [ngrok dashboard](https://dashboard.ngrok.com/get-started/your-authtoken). Required if `tunnel_provider` is `ngrok`. | `2aBcDeFgHiJkLmNoPqRsTuVwXyZ_123456789` |
+| `CF_TUNNEL_TOKEN` | Your Cloudflare Tunnel token. Required if `tunnel_provider` is `cloudflare`. | `your-long-cloudflare-token` |
 | `USER_PASSWORD` | **Required**. The password for the new user account that will be created on the VM. | `your-strong-password` |
 
-## Available Images
+## Optional Pre-installed Software and Configurations
 
-| Image | YAML Label | Included Software |
-| --------------------|---------------------|--------------------|
-| Ubuntu 24.04 | `ubuntu-latest` or `ubuntu-24.04` | [ubuntu-24.04] |
-| Ubuntu 22.04 | `ubuntu-22.04` | [ubuntu-22.04] |
-| macOS 26 Arm64 `beta` | `macos-26` or `macos-26-xlarge` | [macOS-26-arm64] |
-| macOS 15 | `macos-latest-large`, `macos-15-large`, or `macos-15-intel` | [macOS-15] |
-| macOS 15 Arm64 | `macos-latest`, `macos-15`, or `macos-15-xlarge` | [macOS-15-arm64] |
-| macOS 14 | `macos-14-large`| [macOS-14] |
-| macOS 14 Arm64 | `macos-14` or `macos-14-xlarge`| [macOS-14-arm64] |
-| macOS 13 ![Deprecated](https://img.shields.io/badge/-Deprecated-red) | `macos-13` or `macos-13-large` | [macOS-13] |
-| macOS 13 Arm64 ![Deprecated](https://img.shields.io/badge/-Deprecated-red) | `macos-13-xlarge` | [macOS-13-arm64] |
-| Windows Server 2025 | `windows-2025` | [windows-2025] |
-| Windows Server 2022 | `windows-latest` or `windows-2022` | [windows-2022] |
-| Windows Server 2019 ![Deprecated](https://img.shields.io/badge/-Deprecated-red) | `windows-2019` | [windows-2019] |
+You can choose to install additional software using the workflow inputs. The following table details the available software for each operating system:
 
-## System Configuration
-
-The hardware specifications for GitHub-hosted runners vary depending on whether the repository is public or private.
-
-### Standard Runners for Public Repositories
-
-| Virtual Machine | Processor (CPU) | Memory (RAM) | Storage (SSD) |
-| :--- | :--- | :--- | :--- |
-| Linux | 4 Cores | 16 GB | ≈ 250 GB |
-| Windows | 4 Cores | 16 GB | ≈ 250 GB |
-| macOS (Intel) | 4 Cores | 14 GB | ≈ 250 GB |
-| macOS (ARM, M1) | 3 Cores | 7 GB | ≈ 250 GB |
-
-### Standard Runners for Private Repositories
-
-| Virtual Machine | Processor (CPU) | Memory (RAM) | Storage (SSD) |
-| :--- | :--- | :--- | :--- |
-| Linux | 2 Cores | 7 GB | ≈ 250 GB |
-| Windows | 2 Cores | 7 GB | ≈ 250 GB |
-| macOS (Intel) | 4 Cores | 14 GB | ≈ 250 GB |
-| macOS (ARM, M1) | 3 Cores | 7 GB | ≈ 250 GB |
-
-*Note: The `large` and `xlarge` runners listed in the "Available Images" table have different specifications. For more details, please refer to the official [GitHub Larger Runners documentation](https://docs.github.com/en/actions/using-github-hosted-runners/about-larger-runners).*
-
-## Pre-installed Software and Configurations
-
-The following table details the software and configurations that are pre-installed by the scripts for each operating system:
-
-| Operating System | Pre-installed Software/Configuration |
+| Operating System | Optional Software/Configuration |
 | :--- | :--- |
-| **macOS** | - **BlackHole 2ch**: A virtual audio driver for routing audio between applications. <br> - **New Admin User**: A new user account with administrative privileges is created. <br> - **Remote Management**: Screen sharing and remote management are enabled for the new user. |
-| **Ubuntu** | - **snd-aloop**: A kernel module for creating loopback audio devices. <br> - **New Sudo User**: A new user account with `sudo` privileges is created. |
-| **Windows** | - **VB-CABLE**: A virtual audio cable for routing audio. <br> - **New Admin User**: A new user account is created and added to the Administrators group. <br> - **Windows Audio Services**: The `Audiosrv` and `AudioEndpointBuilder` services are enabled and started. <br> - **RDP Audio Redirection**: Group policies are configured to allow audio capture over RDP. <br> - **Google Chrome**: Set as the default web browser. |
+| **macOS** | - **Virtual Sound Card**: Installs BlackHole 2ch, a virtual audio driver. <br> - **GitHub Desktop**: Installs the GitHub Desktop application. <br> - **VS Code**: Installs Visual Studio Code. |
+| **Ubuntu** | - **Virtual Sound Card**: Installs and loads the `snd-aloop` kernel module. <br> - **VS Code**: Installs Visual Studio Code. |
+| **Windows** | - **Virtual Sound Card**: Installs VB-CABLE and enables necessary audio services. <br> - **GitHub Desktop**: Installs the GitHub Desktop application. <br> - **BrowserOS**: Installs BrowserOS (placeholder). <br> - **Void Editor**: Installs Void Editor (placeholder). <br> - **Android Studio**: Installs Android Studio. <br> - **VS Code**: Installs Visual Studio Code. <br> - **Set Default Browser**: Sets the default browser to Chrome or BrowserOS. |
+
+In addition to the optional software, the following base configurations are always applied:
+
+| Operating System | Base Configuration |
+| :--- | :--- |
+| **All** | - A new user account is created with the specified username and password. <br> - The user is granted administrative/sudo privileges. <br> - Remote access (RDP/VNC) is enabled. |
 
 ---
 
