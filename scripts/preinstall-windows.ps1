@@ -12,8 +12,9 @@ param (
     [string]$InstallVoidEditor = 'false',
     [string]$InstallAndroidStudio = 'false',
     [string]$InstallVSCode = 'false',
-    [string]$SetDefaultBrowser = 'none',
-    [switch]$Manual
+
+    [string]$SetDefaultBrowser = 'none'
+
 )
 
 # Convert string parameters to booleans
@@ -23,25 +24,6 @@ $InstallBrowserOSBool = $InstallBrowserOS.ToLower() -eq 'true'
 $InstallVoidEditorBool = $InstallVoidEditor.ToLower() -eq 'true'
 $InstallAndroidStudioBool = $InstallAndroidStudio.ToLower() -eq 'true'
 $InstallVSCodeBool = $InstallVSCode.ToLower() -eq 'true'
-
-if ($Manual) {
-    Write-Host "Manual installation selection enabled."
-
-    function Ask-Install {
-        param (
-            [string]$AppName
-        )
-        $response = Read-Host "Install $AppName? (y/n)"
-        return $response.ToLower() -eq 'y'
-    }
-
-    $InstallVirtualSoundCardBool = Ask-Install "Virtual Sound Card"
-    $InstallGitHubDesktopBool = Ask-Install "GitHub Desktop"
-    $InstallBrowserOSBool = Ask-Install "BrowserOS"
-    $InstallVoidEditorBool = Ask-Install "Void Editor"
-    $InstallAndroidStudioBool = Ask-Install "Android Studio"
-    $InstallVSCodeBool = Ask-Install "VS Code"
-}
 
 if (-not $env:USER_PASSWORD) {
     Write-Error "Error: USER_PASSWORD environment variable is not set."
