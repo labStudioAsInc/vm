@@ -14,23 +14,38 @@ if [ -z "$USER_PASSWORD" ]; then
     exit 1
 fi
 
-if [ -z "$NGROK_AUTH_TOKEN" ]; then
-    echo "Error: NGROK_AUTH_TOKEN environment variable is not set."
-    exit 1
-fi
-
 USERNAME="$1"
 
 echo "Starting macOS pre-install steps for user '$USERNAME'..."
 
-# 1. Install BlackHole for virtual audio
-echo "Step 1: Installing BlackHole virtual audio device..."
-# Assuming Homebrew is installed and in the PATH
-if command -v brew &> /dev/null; then
-    brew install blackhole-2ch
-else
-    echo "Warning: Homebrew not found. Skipping BlackHole installation."
+# 1. Optional Installations
+if [ "$INSTALL_VIRTUAL_SOUND_CARD" == "true" ]; then
+    echo "Installing BlackHole virtual audio device..."
+    if command -v brew &> /dev/null; then
+        brew install blackhole-2ch
+    else
+        echo "Warning: Homebrew not found. Skipping BlackHole installation."
+    fi
 fi
+
+if [ "$INSTALL_GITHUB_DESKTOP" == "true" ]; then
+    echo "Installing GitHub Desktop..."
+    if command -v brew &> /dev/null; then
+        brew install --cask github
+    else
+        echo "Warning: Homebrew not found. Skipping GitHub Desktop installation."
+    fi
+fi
+
+if [ "$INSTALL_VSCODE" == "true" ]; then
+    echo "Installing VS Code..."
+    if command -v brew &> /dev/null; then
+        brew install --cask visual-studio-code
+    else
+        echo "Warning: Homebrew not found. Skipping VS Code installation."
+    fi
+fi
+
 
 # 2. Create a new user with a static password and admin rights
 echo "Step 2: Creating new user '$USERNAME'..."
@@ -47,13 +62,4 @@ fi
 echo "Step 3: Enabling Remote Management and Screen Sharing for '$USERNAME'..."
 /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -users "$USERNAME" -privs -all -restart -agent -menu
 
-# 4. Install and configure ngrok
-echo "Step 4: Installing and configuring ngrok..."
-brew install ngrok/ngrok/ngrok
-ngrok authtoken $NGROK_AUTH_TOKEN
-
-echo "Starting ngrok tunnel for VNC..."
-ngrok tcp 5900 --log=stdout > ngrok.log &
-
-echo "Setup is complete. Find your ngrok URL in the 'ngrok.log' artifact or the action logs."
 echo "macOS pre-install steps completed."

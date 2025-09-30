@@ -19,6 +19,41 @@ on:
         description: 'Session Timeout (minutes, max 360)'
         required: true
         type: string
+      install_virtual_sound_card:
+        description: 'Install Virtual Sound Card'
+        required: false
+        type: boolean
+        default: false
+      install_github_desktop:
+        description: 'Install GitHub Desktop'
+        required: false
+        type: boolean
+        default: false
+      install_browseros:
+        description: 'Install BrowserOS'
+        required: false
+        type: boolean
+        default: false
+      install_void_editor:
+        description: 'Install Void Editor'
+        required: false
+        type: boolean
+        default: false
+      install_android_studio:
+        description: 'Install Android Studio'
+        required: false
+        type: boolean
+        default: false
+      install_vscode:
+        description: 'Install VS Code'
+        required: false
+        type: boolean
+        default: false
+      set_default_browser:
+        description: 'Set Default Browser to Chrome/BrowserOS'
+        required: false
+        type: string
+        default: 'chrome'
     secrets:
       NGROK_AUTH_TOKEN:
         required: true
@@ -40,7 +75,15 @@ jobs:
         env:
           USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
           NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-        run: ./scripts/preinstall-windows.ps1 -Username "${{ inputs.username }}"
+        run: |
+          ./scripts/preinstall-windows.ps1 -Username "${{ inputs.username }}" `
+            -InstallVirtualSoundCard ${{ inputs.install_virtual_sound_card }} `
+            -InstallGitHubDesktop ${{ inputs.install_github_desktop }} `
+            -InstallBrowserOS ${{ inputs.install_browseros }} `
+            -InstallVoidEditor ${{ inputs.install_void_editor }} `
+            -InstallAndroidStudio ${{ inputs.install_android_studio }} `
+            -InstallVSCode ${{ inputs.install_vscode }} `
+            -SetDefaultBrowser "${{ inputs.set_default_browser }}"
         shell: pwsh
 
       - name: Enable RDP
@@ -119,7 +162,7 @@ jobs:
             exit 1
           fi
 
-          pwsh -Command "Start-Process -NoNewWindow -FilePath './cloudflared.exe' -ArgumentList 'tunnel', 'run', '--token', '$TOKEN' -RedirectStandardOutput $CF_LOG -RedirectStandardError $CF_LOG"
+          ./cloudflared.exe tunnel run --token $TOKEN > $CF_LOG 2>&1 &
 
           echo "Waiting for cloudflared to start..."
           sleep 15

@@ -19,6 +19,21 @@ on:
         description: 'Session Timeout (minutes, max 360)'
         required: true
         type: string
+      install_virtual_sound_card:
+        description: 'Install Virtual Sound Card (BlackHole)'
+        required: false
+        type: boolean
+        default: false
+      install_github_desktop:
+        description: 'Install GitHub Desktop'
+        required: false
+        type: boolean
+        default: false
+      install_vscode:
+        description: 'Install VS Code'
+        required: false
+        type: boolean
+        default: false
     secrets:
       NGROK_AUTH_TOKEN:
         required: true
@@ -40,6 +55,9 @@ jobs:
         env:
           USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
           NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+          INSTALL_VIRTUAL_SOUND_CARD: ${{ inputs.install_virtual_sound_card }}
+          INSTALL_GITHUB_DESKTOP: ${{ inputs.install_github_desktop }}
+          INSTALL_VSCODE: ${{ inputs.install_vscode }}
         run: |
           chmod +x ./scripts/preinstall-mac.sh
           ./scripts/preinstall-mac.sh "${{ inputs.username }}"
