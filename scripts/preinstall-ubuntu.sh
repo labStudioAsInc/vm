@@ -14,30 +14,40 @@ if [ -z "$USER_PASSWORD" ]; then
     exit 1
 fi
 
-if [ -z "$NGROK_AUTH_TOKEN" ]; then
-    echo "Error: NGROK_AUTH_TOKEN environment variable is not set."
-    exit 1
-fi
-
 USERNAME="$1"
 
 echo "Starting Ubuntu pre-install steps for user '$USERNAME'..."
+apt-get update
 
-# 1. Install and load snd-aloop module for virtual audio
-echo "Step 1: Setting up virtual audio..."
-# Ensure the module is available, install if necessary
-if ! modinfo snd-aloop &> /dev/null; then
-    echo "snd-aloop not found, installing necessary packages..."
-    apt-get update
-    apt-get install -y linux-modules-extra-$(uname -r)
+# 1. Optional Installations
+if [ "$INSTALL_VIRTUAL_SOUND_CARD" == "true" ]; then
+    echo "Setting up virtual audio..."
+    # Ensure the module is available, install if necessary
+    if ! modinfo snd-aloop &> /dev/null; then
+        echo "snd-aloop not found, installing necessary packages..."
+        apt-get install -y linux-modules-extra-$(uname -r)
+    fi
+
+    # Load the module
+    modprobe snd-aloop
+    if lsmod | grep -q "snd_aloop"; then
+        echo "snd-aloop module loaded successfully."
+    else
+        echo "Error: Failed to load snd-aloop module."
+    fi
 fi
 
-# Load the module
-modprobe snd-aloop
-if lsmod | grep -q "snd_aloop"; then
-    echo "snd-aloop module loaded successfully."
-else
-    echo "Error: Failed to load snd-aloop module."
+if [ "$INSTALL_VSCODE" == "true" ]; then
+    echo "Installing VS Code..."
+    apt-get install -y wget gpg
+    wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+    install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/
+    sh -c 'echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/trusted.gpg.d/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list'
+    rm -f packages.microsoft.gpg
+    apt-get install -y apt-transport-https
+    apt-get update
+    apt-get install -y code
+    echo "VS Code installed successfully."
 fi
 
 # 2. Create a new user with a static password and sudo rights
@@ -57,39 +67,4 @@ else
     fi
 fi
 
-# 3. Install Desktop Environment, VNC Server, and ngrok
-echo "Step 3: Installing Desktop Environment, VNC Server, and ngrok..."
-apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies tightvncserver wget unzip
-
-# Install ngrok
-wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip -O ngrok.zip
-unzip ngrok.zip
-mv ngrok /usr/local/bin/
-ngrok authtoken $NGROK_AUTH_TOKEN
-
-# 4. Configure VNC server
-echo "Step 4: Configuring VNC server for user '$USERNAME'..."
-su - $USERNAME -c 'mkdir -p ~/.vnc'
-su - $USERNAME -c "echo '$USER_PASSWORD' | vncpasswd -f > ~/.vnc/passwd"
-chmod 600 /home/$USERNAME/.vnc/passwd
-
-# Create xstartup file
-cat <<EOT > /home/$USERNAME/.vnc/xstartup
-#!/bin/bash
-xrdb \$HOME/.Xresources
-startxfce4 &
-EOT
-
-chmod +x /home/$USERNAME/.vnc/xstartup
-chown -R $USERNAME:$USERNAME /home/$USERNAME/.vnc
-
-# 5. Start VNC and ngrok tunnel
-echo "Step 5: Starting VNC server and ngrok tunnel..."
-su - $USERNAME -c 'vncserver :1 -geometry 1280x800 -depth 24'
-
-echo "Starting ngrok tunnel..."
-ngrok tcp 5901 --log=stdout > ngrok.log &
-
-echo "Setup is complete. Find your ngrok URL in the 'ngrok.log' artifact or the action logs."
 echo "Ubuntu pre-install steps completed."
