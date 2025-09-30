@@ -15,6 +15,9 @@ if [ -z "$USER_PASSWORD" ]; then
 fi
 
 USERNAME="$1"
+INSTALL_VIRTUAL_SOUND_CARD="${2:-false}"
+INSTALL_GITHUB_DESKTOP="${3:-false}"
+INSTALL_VSCODE="${4:-false}"
 
 echo "Starting macOS pre-install steps for user '$USERNAME'..."
 
