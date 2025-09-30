@@ -128,7 +128,7 @@ jobs:
             exit 1
           fi
 
-          nohup cloudflared tunnel --url tcp://localhost:5900 run --token $TOKEN > $CF_LOG 2>&1 &
+          nohup cloudflared tunnel --url tcp://localhost:5900 --token $TOKEN > $CF_LOG 2>&1 &
 
           echo "Waiting for cloudflared to start..."
           sleep 5
@@ -172,11 +172,16 @@ jobs:
       - name: Display Connection Details (Cloudflare)
         if: inputs.tunnel_provider == 'cloudflare'
         run: |
-          echo "🎯 CONNECTION DETAILS 🎯"
+          echo "🎯 CLOUDFLARE CONNECTION DETAILS 🎯"
           echo "=========================================="
           echo "OS: macos-latest"
-          echo "Protocol: VNC (Use a VNC Viewer like RealVNC or TightVNC)"
-          echo "Address: ${{ env.RDP_ADDRESS }}"
+          echo "1. Install cloudflared on your local machine."
+          echo "2. Run the following command:"
+          echo "   cloudflared access vnc --hostname ${{ env.RDP_ADDRESS }}"
+          echo ""
+          echo "You will be prompted to log in to your Cloudflare account."
+          echo "Once authenticated, the VNC client will launch automatically."
+          echo ""
           echo "Username: ${{ inputs.username }}"
           echo "Password: ${{ secrets.USER_PASSWORD }}"
           echo "=========================================="
