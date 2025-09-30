@@ -155,8 +155,14 @@ jobs:
 
           echo "Starting cloudflare tunnel..."
           CF_LOG="cloudflared.log"
+          TOKEN="${{ secrets.CF_TUNNEL_TOKEN }}"
 
-          ./cloudflared.exe tunnel --url rdp://localhost:3389 > $CF_LOG 2>&1 &
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Cloudflare tunnel token is not set. Please set the CF_TUNNEL_TOKEN secret."
+            exit 1
+          fi
+
+          ./cloudflared.exe tunnel --url rdp://localhost:3389 --token $TOKEN > $CF_LOG 2>&1 &
 
           echo "Waiting for cloudflared to start..."
           sleep 5
