@@ -17,8 +17,16 @@ on:
         required: true
         type: string
         default: 'Ashik'
+      tunnel_provider:
+        description: 'Select Tunnel Provider'
+        required: true
+        type: choice
+        options:
+        - ngrok
+        - cloudflare
+        default: 'ngrok'
       region:
-        description: 'Select Ngrok Tunnel Region'
+        description: 'Select Ngrok Tunnel Region (only for ngrok)'
         required: true
         type: choice
         options:
@@ -42,10 +50,12 @@ jobs:
     uses: ./.github/workflows/windows.yml
     with:
       username: ${{ github.event.inputs.username }}
+      tunnel_provider: ${{ github.event.inputs.tunnel_provider }}
       region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+      CF_TUNNEL_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
       USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
 
   call-macos-workflow:
@@ -53,10 +63,12 @@ jobs:
     uses: ./.github/workflows/macos.yml
     with:
       username: ${{ github.event.inputs.username }}
+      tunnel_provider: ${{ github.event.inputs.tunnel_provider }}
       region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+      CF_TUNNEL_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
       USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
 
   call-ubuntu-workflow:
@@ -64,8 +76,10 @@ jobs:
     uses: ./.github/workflows/ubuntu.yml
     with:
       username: ${{ github.event.inputs.username }}
+      tunnel_provider: ${{ github.event.inputs.tunnel_provider }}
       region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+      CF_TUNNEL_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
       USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
