@@ -128,10 +128,30 @@ jobs:
             exit 1
           fi
 
-          nohup cloudflared tunnel run --token $TOKEN > $CF_LOG 2>&1 &
+          nohup cloudflared tunnel --url tcp://localhost:5900 run --token $TOKEN > $CF_LOG 2>&1 &
 
           echo "Waiting for cloudflared to start..."
-          sleep 15
+          sleep 5
+
+          for i in {1..10}; do
+            TUNNEL_URL=$(grep -o 'https://[a-z-]*\.trycloudflare\.com' $CF_LOG | head -n 1)
+            if [ -n "$TUNNEL_URL" ]; then
+              break
+            fi
+            echo "Attempt $i: Tunnel not ready yet, waiting..."
+            sleep 3
+          done
+
+          if [ -z "$TUNNEL_URL" ]; then
+            echo "::error::Failed to get Cloudflare tunnel info after multiple attempts."
+            echo "Cloudflared log content:"
+            cat "$CF_LOG" 2>/dev/null || echo "No cloudflared log found"
+            exit 1
+          fi
+
+          RDP_ADDRESS=$(echo "$TUNNEL_URL" | sed 's|https://||')
+          echo "RDP_ADDRESS=$RDP_ADDRESS" >> $GITHUB_ENV
+          echo "Tunnel established successfully: $RDP_ADDRESS"
 
       - name: Display Connection Details (Ngrok)
         if: inputs.tunnel_provider == 'ngrok'
@@ -156,12 +176,10 @@ jobs:
           echo "=========================================="
           echo "OS: macos-latest"
           echo "Protocol: VNC (Use a VNC Viewer like RealVNC or TightVNC)"
-          echo "Address: Please check your Cloudflare dashboard for your tunnel hostname."
+          echo "Address: ${{ env.RDP_ADDRESS }}"
           echo "Username: ${{ inputs.username }}"
           echo "Password: ${{ secrets.USER_PASSWORD }}"
           echo "=========================================="
-          echo "Cloudflared log:"
-          cat cloudflared.log 2>/dev/null || echo "No cloudflared log found"
         shell: bash
 
       - name: Keep Workflow Alive
