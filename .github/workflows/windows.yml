@@ -168,7 +168,7 @@ jobs:
           sleep 5
 
           for i in {1..10}; do
-            TUNNEL_URL=$(grep -o 'https://[a-z-]*\.trycloudflare\.com' $CF_LOG | head -n 1)
+            TUNNEL_URL=$(grep -o 'https://[a-z-]*\.trycloudflare\.com' $CF_LOG | head -n 1 || true)
             if [ -n "$TUNNEL_URL" ]; then
               break
             fi
