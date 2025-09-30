@@ -6,14 +6,42 @@
 param (
     [Parameter(Mandatory=$true)]
     [string]$Username,
-    [bool]$InstallVirtualSoundCard = $false,
-    [bool]$InstallGitHubDesktop = $false,
-    [bool]$InstallBrowserOS = $false,
-    [bool]$InstallVoidEditor = $false,
-    [bool]$InstallAndroidStudio = $false,
-    [bool]$InstallVSCode = $false,
-    [string]$SetDefaultBrowser = 'none'
+    [string]$InstallVirtualSoundCard = 'false',
+    [string]$InstallGitHubDesktop = 'false',
+    [string]$InstallBrowserOS = 'false',
+    [string]$InstallVoidEditor = 'false',
+    [string]$InstallAndroidStudio = 'false',
+    [string]$InstallVSCode = 'false',
+    [string]$SetDefaultBrowser = 'none',
+    [switch]$Manual
 )
+
+# Convert string parameters to booleans
+$InstallVirtualSoundCardBool = $InstallVirtualSoundCard.ToLower() -eq 'true'
+$InstallGitHubDesktopBool = $InstallGitHubDesktop.ToLower() -eq 'true'
+$InstallBrowserOSBool = $InstallBrowserOS.ToLower() -eq 'true'
+$InstallVoidEditorBool = $InstallVoidEditor.ToLower() -eq 'true'
+$InstallAndroidStudioBool = $InstallAndroidStudio.ToLower() -eq 'true'
+$InstallVSCodeBool = $InstallVSCode.ToLower() -eq 'true'
+
+if ($Manual) {
+    Write-Host "Manual installation selection enabled."
+
+    function Ask-Install {
+        param (
+            [string]$AppName
+        )
+        $response = Read-Host "Install $AppName? (y/n)"
+        return $response.ToLower() -eq 'y'
+    }
+
+    $InstallVirtualSoundCardBool = Ask-Install "Virtual Sound Card"
+    $InstallGitHubDesktopBool = Ask-Install "GitHub Desktop"
+    $InstallBrowserOSBool = Ask-Install "BrowserOS"
+    $InstallVoidEditorBool = Ask-Install "Void Editor"
+    $InstallAndroidStudioBool = Ask-Install "Android Studio"
+    $InstallVSCodeBool = Ask-Install "VS Code"
+}
 
 if (-not $env:USER_PASSWORD) {
     Write-Error "Error: USER_PASSWORD environment variable is not set."
@@ -39,7 +67,7 @@ try {
 }
 
 # 2. Optional Installations
-if ($InstallVirtualSoundCard) {
+if ($InstallVirtualSoundCardBool) {
     Write-Host "Installing and configuring virtual audio..."
     try {
         Write-Host "Installing VB-CABLE Virtual Audio Device using Chocolatey..."
@@ -61,7 +89,7 @@ if ($InstallVirtualSoundCard) {
     }
 }
 
-if ($InstallGitHubDesktop) {
+if ($InstallGitHubDesktopBool) {
     Write-Host "Installing GitHub Desktop..."
     try {
         choco install github-desktop -y --force
@@ -71,7 +99,7 @@ if ($InstallGitHubDesktop) {
     }
 }
 
-if ($InstallBrowserOS) {
+if ($InstallBrowserOSBool) {
     Write-Host "Installing BrowserOS..."
     try {
         # Assuming a Chocolatey package exists. If not, this will need to be updated.
@@ -82,7 +110,7 @@ if ($InstallBrowserOS) {
     }
 }
 
-if ($InstallVoidEditor) {
+if ($InstallVoidEditorBool) {
     Write-Host "Installing Void Editor..."
     try {
         # Assuming a Chocolatey package exists.
@@ -93,7 +121,7 @@ if ($InstallVoidEditor) {
     }
 }
 
-if ($InstallAndroidStudio) {
+if ($InstallAndroidStudioBool) {
     Write-Host "Installing Android Studio..."
     try {
         choco install android-studio -y --force
@@ -103,7 +131,7 @@ if ($InstallAndroidStudio) {
     }
 }
 
-if ($InstallVSCode) {
+if ($InstallVSCodeBool) {
     Write-Host "Installing VS Code..."
     try {
         choco install vscode -y --force
