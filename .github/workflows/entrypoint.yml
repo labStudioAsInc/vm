@@ -43,36 +43,11 @@ on:
         required: true
         type: string
         default: '360'
-      install_virtual_sound_card:
-        description: 'Install Virtual Sound Card'
+      install_apps:
+        description: 'Apps to install (comma-separated: virtual_sound_card,github_desktop,browseros,void_editor,android_studio,vscode)'
         required: false
-        type: boolean
-        default: false
-      install_github_desktop:
-        description: 'Install GitHub Desktop'
-        required: false
-        type: boolean
-        default: false
-      install_browseros:
-        description: 'Install BrowserOS'
-        required: false
-        type: boolean
-        default: false
-      install_void_editor:
-        description: 'Install Void Editor'
-        required: false
-        type: boolean
-        default: false
-      install_android_studio:
-        description: 'Install Android Studio'
-        required: false
-        type: boolean
-        default: false
-      install_vscode:
-        description: 'Install VS Code'
-        required: false
-        type: boolean
-        default: false
+        type: string
+        default: ''
       set_default_browser:
         description: 'Set Default Browser to Chrome/BrowserOS'
         required: false
@@ -88,12 +63,12 @@ jobs:
       tunnel_provider: ${{ github.event.inputs.tunnel_provider }}
       region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
-      install_virtual_sound_card: ${{ github.event.inputs.install_virtual_sound_card }}
-      install_github_desktop: ${{ github.event.inputs.install_github_desktop }}
-      install_browseros: ${{ github.event.inputs.install_browseros }}
-      install_void_editor: ${{ github.event.inputs.install_void_editor }}
-      install_android_studio: ${{ github.event.inputs.install_android_studio }}
-      install_vscode: ${{ github.event.inputs.install_vscode }}
+      install_virtual_sound_card: ${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}
+      install_github_desktop: ${{ contains(github.event.inputs.install_apps, 'github_desktop') }}
+      install_browseros: ${{ contains(github.event.inputs.install_apps, 'browseros') }}
+      install_void_editor: ${{ contains(github.event.inputs.install_apps, 'void_editor') }}
+      install_android_studio: ${{ contains(github.event.inputs.install_apps, 'android_studio') }}
+      install_vscode: ${{ contains(github.event.inputs.install_apps, 'vscode') }}
       set_default_browser: ${{ github.event.inputs.set_default_browser }}
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
@@ -108,9 +83,9 @@ jobs:
       tunnel_provider: ${{ github.event.inputs.tunnel_provider }}
       region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
-      install_virtual_sound_card: ${{ github.event.inputs.install_virtual_sound_card }}
-      install_github_desktop: ${{ github.event.inputs.install_github_desktop }}
-      install_vscode: ${{ github.event.inputs.install_vscode }}
+      install_virtual_sound_card: ${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}
+      install_github_desktop: ${{ contains(github.event.inputs.install_apps, 'github_desktop') }}
+      install_vscode: ${{ contains(github.event.inputs.install_apps, 'vscode') }}
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
       CF_TUNNEL_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
@@ -124,8 +99,8 @@ jobs:
       tunnel_provider: ${{ github.event.inputs.tunnel_provider }}
       region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
-      install_virtual_sound_card: ${{ github.event.inputs.install_virtual_sound_card }}
-      install_vscode: ${{ github.event.inputs.install_vscode }}
+      install_virtual_sound_card: ${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}
+      install_vscode: ${{ contains(github.event.inputs.install_apps, 'vscode') }}
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
       CF_TUNNEL_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
