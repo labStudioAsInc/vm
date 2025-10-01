@@ -13,6 +13,9 @@
 
 ## <a name="overview"></a>Overview
 
+> [!WARNING]
+> **macOS and Ubuntu versions are currently not being maintained and may cause crashes. Please use Windows Server 2025 for stable operation.**
+
 This project leverages GitHub Actions to provide you with a temporary, free virtual machine. The workflows and scripts in this repository automate the initial setup of GitHub Runner VMs, including the configuration of servers for Windows, macOS, and Ubuntu.
 
 ## How it works
