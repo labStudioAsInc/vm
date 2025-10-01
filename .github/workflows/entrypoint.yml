@@ -61,7 +61,6 @@ jobs:
     with:
       username: ${{ github.event.inputs.username }}
       tunnel_provider: ${{ github.event.inputs.tunnel_provider }}
-      region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
       install_virtual_sound_card: ${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}
       install_github_desktop: ${{ contains(github.event.inputs.install_apps, 'github_desktop') }}
@@ -72,7 +71,6 @@ jobs:
       set_default_browser: ${{ github.event.inputs.set_default_browser }}
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-      CF_TUNNEL_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
       USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
 
   call-macos-workflow:
