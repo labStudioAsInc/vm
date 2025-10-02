@@ -108,47 +108,12 @@ jobs:
           echo "RDP_PORT=$RDP_PORT" >> $GITHUB_ENV
           echo "Tunnel established successfully: $TUNNEL_URL"
 
-      - name: Setup Cloudflare Tunnel
+      - name: Fail Gracefully for Cloudflare
         if: inputs.tunnel_provider == 'cloudflare'
         shell: bash
         run: |
-          echo "Installing cloudflared..."
-          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-          sudo dpkg -i cloudflared.deb
-
-          echo "Starting cloudflare tunnel..."
-          CF_LOG="cloudflared.log"
-          TOKEN="${{ secrets.CF_TUNNEL_TOKEN }}"
-
-          if [ -z "$TOKEN" ]; then
-            echo "::error::Cloudflare tunnel token is not set. Please set the CF_TUNNEL_TOKEN secret."
-            exit 1
-          fi
-
-          nohup cloudflared tunnel --url tcp://localhost:3389 --token $TOKEN > $CF_LOG 2>&1 &
-
-          echo "Waiting for cloudflared to start..."
-          sleep 5
-
-          for i in {1..10}; do
-            TUNNEL_URL=$(grep -o 'https://[a-z-]*\.trycloudflare\.com' $CF_LOG | head -n 1)
-            if [ -n "$TUNNEL_URL" ]; then
-              break
-            fi
-            echo "Attempt $i: Tunnel not ready yet, waiting..."
-            sleep 3
-          done
-
-          if [ -z "$TUNNEL_URL" ]; then
-            echo "::error::Failed to get Cloudflare tunnel info after multiple attempts."
-            echo "Cloudflared log content:"
-            cat "$CF_LOG" 2>/dev/null || echo "No cloudflared log found"
-            exit 1
-          fi
-
-          RDP_ADDRESS=$(echo "$TUNNEL_URL" | sed 's|https://||')
-          echo "RDP_ADDRESS=$RDP_ADDRESS" >> $GITHUB_ENV
-          echo "Tunnel established successfully: $RDP_ADDRESS"
+          echo "::error::The Cloudflare tunnel provider is currently not supported on Ubuntu due to an outdated integration. Please use the 'ngrok' provider instead."
+          exit 1
 
       - name: Display Connection Details (Ngrok)
         if: inputs.tunnel_provider == 'ngrok'
@@ -166,23 +131,6 @@ jobs:
           echo "Connection string: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
         shell: bash
 
-      - name: Display Connection Details (Cloudflare)
-        if: inputs.tunnel_provider == 'cloudflare'
-        run: |
-          echo "🎯 CLOUDFLARE CONNECTION DETAILS 🎯"
-          echo "=========================================="
-          echo "OS: ubuntu-latest"
-          echo "1. Install cloudflared on your local machine."
-          echo "2. Run the following command:"
-          echo "   cloudflared access rdp --hostname ${{ env.RDP_ADDRESS }}"
-          echo ""
-          echo "You will be prompted to log in to your Cloudflare account."
-          echo "Once authenticated, the RDP client will launch automatically."
-          echo ""
-          echo "Username: ${{ inputs.username }}"
-          echo "Password: ${{ secrets.USER_PASSWORD }}"
-          echo "=========================================="
-        shell: bash
 
       - name: Keep Workflow Alive
         shell: bash
