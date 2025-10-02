@@ -52,8 +52,8 @@ if [ "$INSTALL_VSCODE" == "true" ]; then
     echo "VS Code installed successfully."
 fi
 
-# 2. Create a new user with a static password and sudo rights
-echo "Step 2: Creating new user '$USERNAME'..."
+# 2. Create a new user and configure their session
+echo "Step 2: Creating new user '$USERNAME' and configuring session..."
 if id "$USERNAME" &>/dev/null; then
     echo "User '$USERNAME' already exists. Setting password and ensuring sudo rights."
     echo "$USERNAME:$USER_PASSWORD" | sudo chpasswd
@@ -69,13 +69,16 @@ else
     echo "Successfully created user '$USERNAME' and added to sudo group."
 fi
 
+# Create .xsession file immediately after user creation
+echo "xfce4-session" | sudo tee /home/$USERNAME/.xsession
+sudo chown $USERNAME:$USERNAME /home/$USERNAME/.xsession
+echo ".xsession file created successfully."
+
 # 3. Configure RDP
 echo "Step 3: Configuring RDP..."
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies xrdp
 sudo systemctl enable --now xrdp
 sudo ufw allow 3389
-echo "xfce4-session" | sudo tee /home/$USERNAME/.xsession
-sudo chown $USERNAME:$USERNAME /home/$USERNAME/.xsession
 echo "RDP configured successfully."
 
 echo "Ubuntu pre-install steps completed."
