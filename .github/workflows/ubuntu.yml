@@ -49,21 +49,11 @@ jobs:
       - name: Run pre-install script
         env:
           USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
-          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
         run: |
           chmod +x ./scripts/preinstall-ubuntu.sh
-          ./scripts/preinstall-ubuntu.sh "${{ inputs.username }}" \
+          sudo USER_PASSWORD=$USER_PASSWORD ./scripts/preinstall-ubuntu.sh "${{ inputs.username }}" \
             "${{ inputs.install_virtual_sound_card }}" \
             "${{ inputs.install_vscode }}"
-
-      - name: Configure RDP on Ubuntu
-        run: |
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies xrdp
-          sudo systemctl enable --now xrdp
-          sudo ufw allow 3389
-          echo "xfce4-session" | sudo tee /home/${{ inputs.username }}/.xsession
-          sudo chown ${{ inputs.username }}:${{ inputs.username }} /home/${{ inputs.username }}/.xsession
 
       - name: Install jq
         run: |
@@ -128,25 +118,19 @@ jobs:
 
           echo "Starting cloudflare tunnel..."
           CF_LOG="cloudflared.log"
-          TOKEN="${{ secrets.CF_TUNNEL_TOKEN }}"
 
-          if [ -z "$TOKEN" ]; then
-            echo "::error::Cloudflare tunnel token is not set. Please set the CF_TUNNEL_TOKEN secret."
-            exit 1
-          fi
-
-          nohup cloudflared tunnel --url tcp://localhost:3389 --token $TOKEN > $CF_LOG 2>&1 &
+          nohup cloudflared tunnel --url tcp://localhost:3389 > $CF_LOG 2>&1 &
 
           echo "Waiting for cloudflared to start..."
-          sleep 5
+          sleep 10
 
           for i in {1..10}; do
-            TUNNEL_URL=$(grep -o 'https://[a-z-]*\.trycloudflare\.com' $CF_LOG | head -n 1)
+            TUNNEL_URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' $CF_LOG | head -n 1)
             if [ -n "$TUNNEL_URL" ]; then
               break
             fi
             echo "Attempt $i: Tunnel not ready yet, waiting..."
-            sleep 3
+            sleep 5
           done
 
           if [ -z "$TUNNEL_URL" ]; then
@@ -175,6 +159,7 @@ jobs:
           echo "=========================================="
           echo "Connection string: ${{ env.RDP_ADDRESS }}:${{ env.RDP_PORT }}"
         shell: bash
+
 
       - name: Display Connection Details (Cloudflare)
         if: inputs.tunnel_provider == 'cloudflare'
