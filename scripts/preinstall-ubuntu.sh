@@ -69,6 +69,10 @@ else
     echo "Successfully created user '$USERNAME' and added to sudo group."
 fi
 
+# Explicitly create home directory and set permissions as a failsafe
+sudo mkdir -p /home/$USERNAME
+sudo chown $USERNAME:$USERNAME /home/$USERNAME
+
 # Create .xsession file immediately after user creation
 echo "xfce4-session" | sudo tee /home/$USERNAME/.xsession
 sudo chown $USERNAME:$USERNAME /home/$USERNAME/.xsession
