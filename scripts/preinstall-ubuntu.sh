@@ -19,7 +19,7 @@ INSTALL_VIRTUAL_SOUND_CARD="${2:-false}"
 INSTALL_VSCODE="${3:-false}"
 
 echo "Starting Ubuntu pre-install steps for user '$USERNAME'..."
-apt-get update
+sudo apt-get update
 
 # 1. Optional Installations
 if [ "$INSTALL_VIRTUAL_SOUND_CARD" == "true" ]; then
@@ -27,11 +27,11 @@ if [ "$INSTALL_VIRTUAL_SOUND_CARD" == "true" ]; then
     # Ensure the module is available, install if necessary
     if ! modinfo snd-aloop &> /dev/null; then
         echo "snd-aloop not found, installing necessary packages..."
-        apt-get install -y linux-modules-extra-$(uname -r)
+        sudo apt-get install -y linux-modules-extra-$(uname -r)
     fi
 
     # Load the module
-    modprobe snd-aloop
+    sudo modprobe snd-aloop
     if lsmod | grep -q "snd_aloop"; then
         echo "snd-aloop module loaded successfully."
     else
@@ -41,14 +41,14 @@ fi
 
 if [ "$INSTALL_VSCODE" == "true" ]; then
     echo "Installing VS Code..."
-    apt-get install -y wget gpg
+    sudo apt-get install -y wget gpg
     wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
-    install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/
-    sh -c 'echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/trusted.gpg.d/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list'
-    rm -f packages.microsoft.gpg
-    apt-get install -y apt-transport-https
-    apt-get update
-    apt-get install -y code
+    sudo install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/
+    sudo sh -c 'echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/trusted.gpg.d/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list'
+    sudo rm -f packages.microsoft.gpg
+    sudo apt-get install -y apt-transport-https
+    sudo apt-get update
+    sudo apt-get install -y code
     echo "VS Code installed successfully."
 fi
 
@@ -56,17 +56,26 @@ fi
 echo "Step 2: Creating new user '$USERNAME'..."
 if id "$USERNAME" &>/dev/null; then
     echo "User '$USERNAME' already exists. Setting password and ensuring sudo rights."
-    echo "$USERNAME:$USER_PASSWORD" | chpasswd
-    usermod -aG sudo "$USERNAME"
+    echo "$USERNAME:$USER_PASSWORD" | sudo chpasswd
+    sudo usermod -aG sudo "$USERNAME"
 else
-    useradd -m -s /bin/bash "$USERNAME"
-    if [ $? -eq 0 ]; then
-        echo "$USERNAME:$USER_PASSWORD" | chpasswd
-        usermod -aG sudo "$USERNAME"
-        echo "Successfully created user '$USERNAME' and added to sudo group."
-    else
+    sudo useradd -m -s /bin/bash "$USERNAME"
+    if [ $? -ne 0 ]; then
         echo "Error: Failed to create user '$USERNAME'."
+        exit 1
     fi
+    echo "$USERNAME:$USER_PASSWORD" | sudo chpasswd
+    sudo usermod -aG sudo "$USERNAME"
+    echo "Successfully created user '$USERNAME' and added to sudo group."
 fi
+
+# 3. Configure RDP
+echo "Step 3: Configuring RDP..."
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies xrdp
+sudo systemctl enable --now xrdp
+sudo ufw allow 3389
+echo "xfce4-session" | sudo tee /home/$USERNAME/.xsession
+sudo chown $USERNAME:$USERNAME /home/$USERNAME/.xsession
+echo "RDP configured successfully."
 
 echo "Ubuntu pre-install steps completed."

@@ -49,21 +49,11 @@ jobs:
       - name: Run pre-install script
         env:
           USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
-          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
         run: |
           chmod +x ./scripts/preinstall-ubuntu.sh
-          ./scripts/preinstall-ubuntu.sh "${{ inputs.username }}" \
+          sudo ./scripts/preinstall-ubuntu.sh "${{ inputs.username }}" \
             "${{ inputs.install_virtual_sound_card }}" \
             "${{ inputs.install_vscode }}"
-
-      - name: Configure RDP on Ubuntu
-        run: |
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies xrdp
-          sudo systemctl enable --now xrdp
-          sudo ufw allow 3389
-          echo "xfce4-session" | sudo tee /home/${{ inputs.username }}/.xsession
-          sudo chown ${{ inputs.username }}:${{ inputs.username }} /home/${{ inputs.username }}/.xsession
 
       - name: Install jq
         run: |
