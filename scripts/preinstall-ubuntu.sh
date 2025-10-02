@@ -69,20 +69,27 @@ else
     echo "Successfully created user '$USERNAME' and added to sudo group."
 fi
 
-# 3. Install RDP
-echo "Step 3: Installing RDP..."
+# 3. Install and Configure RDP
+echo "Step 3: Installing and configuring RDP..."
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies xrdp
+# Configure xrdp to use the XFCE session
+sudo sed -i.bak '/fi/a #xrdp multiple users configuration \n startxfce4 \n' /etc/xrdp/startwm.sh
 sudo systemctl enable --now xrdp
 sudo ufw allow 3389
-echo "RDP packages installed."
+echo "RDP packages installed and configured."
 
 # 4. Configure user session
 echo "Step 4: Configuring user session for '$USERNAME'..."
 # Failsafe: ensure home directory exists and has correct ownership
 sudo mkdir -p /home/$USERNAME
 sudo chown $USERNAME:$USERNAME /home/$USERNAME
-# Create .xsession file as the user to avoid permission issues
-sudo -u $USERNAME sh -c "echo xfce4-session > /home/$USERNAME/.xsession"
+# Create .xsession file to launch XFCE
+sudo -u $USERNAME sh -c "echo '#!/bin/sh' > /home/$USERNAME/.xsession"
+sudo -u $USERNAME sh -c "echo 'startxfce4' >> /home/$USERNAME/.xsession"
+sudo -u $USERNAME chmod +x /home/$USERNAME/.xsession
+
+# Restart xrdp to apply all changes
+sudo systemctl restart xrdp
 echo "User session configured successfully."
 
 echo "Ubuntu pre-install steps completed."
