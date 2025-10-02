@@ -51,7 +51,7 @@ jobs:
           USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
         run: |
           chmod +x ./scripts/preinstall-ubuntu.sh
-          sudo ./scripts/preinstall-ubuntu.sh "${{ inputs.username }}" \
+          sudo USER_PASSWORD=$USER_PASSWORD ./scripts/preinstall-ubuntu.sh "${{ inputs.username }}" \
             "${{ inputs.install_virtual_sound_card }}" \
             "${{ inputs.install_vscode }}"
 
