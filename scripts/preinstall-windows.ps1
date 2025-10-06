@@ -1,7 +1,49 @@
-#
-# This script contains pre-installation steps for Windows.
-# It should be run with Administrator privileges.
-#
+<#
+.SYNOPSIS
+    This script performs pre-installation and configuration tasks for a Windows VM.
+
+.DESCRIPTION
+    This script automates the initial setup of a Windows environment. It performs the following actions:
+    - Creates a new local user with administrative privileges using credentials from the environment.
+    - Optionally installs a suite of software using Chocolatey, including a virtual sound card, GitHub Desktop, VS Code, and more.
+    - Optionally sets the default web browser.
+    - Enables Remote Desktop Protocol (RDP) and configures firewall rules to allow connections.
+
+    This script must be run with Administrator privileges. It also requires the following environment variables to be set:
+    - USER_PASSWORD: The password for the new user account.
+    - NGROK_AUTH_TOKEN: The authentication token for ngrok (required for tunnel setup, although not used directly in this script, it's part of the overall workflow).
+
+.PARAMETER Username
+    The username for the new local user account to be created. This parameter is mandatory.
+
+.PARAMETER InstallVirtualSoundCard
+    A boolean switch ('true' or 'false') to determine whether to install the VB-CABLE virtual audio device. Defaults to 'false'.
+
+.PARAMETER InstallGitHubDesktop
+    A boolean switch ('true' or 'false') to determine whether to install GitHub Desktop. Defaults to 'false'.
+
+.PARAMETER InstallBrowserOS
+    A boolean switch ('true' or 'false') to determine whether to install BrowserOS (placeholder). Defaults to 'false'.
+
+.PARAMETER InstallVoidEditor
+    A boolean switch ('true' or 'false') to determine whether to install Void Editor (placeholder). Defaults to 'false'.
+
+.PARAMETER InstallAndroidStudio
+    A boolean switch ('true' or 'false') to determine whether to install Android Studio. Defaults to 'false'.
+
+.PARAMETER InstallVSCode
+    A boolean switch ('true' or 'false') to determine whether to install Visual Studio Code. Defaults to 'false'.
+
+.PARAMETER SetDefaultBrowser
+    Specifies the default browser to set. Accepts 'chrome', 'browseros', or 'none'. Defaults to 'none'.
+
+.EXAMPLE
+    .\preinstall-windows.ps1 -Username "testuser" -InstallVSCode 'true' -SetDefaultBrowser 'chrome'
+
+.NOTES
+    Author: TheRealAshik
+    Date: 2025-10-06
+#>
 
 param (
     [Parameter(Mandatory=$true)]
@@ -12,12 +54,10 @@ param (
     [string]$InstallVoidEditor = 'false',
     [string]$InstallAndroidStudio = 'false',
     [string]$InstallVSCode = 'false',
-
     [string]$SetDefaultBrowser = 'none'
-
 )
 
-# Convert string parameters to booleans
+# Convert string input parameters to boolean types for easier handling in the script.
 $InstallVirtualSoundCardBool = $InstallVirtualSoundCard.ToLower() -eq 'true'
 $InstallGitHubDesktopBool = $InstallGitHubDesktop.ToLower() -eq 'true'
 $InstallBrowserOSBool = $InstallBrowserOS.ToLower() -eq 'true'
@@ -25,6 +65,7 @@ $InstallVoidEditorBool = $InstallVoidEditor.ToLower() -eq 'true'
 $InstallAndroidStudioBool = $InstallAndroidStudio.ToLower() -eq 'true'
 $InstallVSCodeBool = $InstallVSCode.ToLower() -eq 'true'
 
+# Check for required environment variables.
 if (-not $env:USER_PASSWORD) {
     Write-Error "Error: USER_PASSWORD environment variable is not set."
     exit 1
@@ -37,7 +78,9 @@ if (-not $env:NGROK_AUTH_TOKEN) {
 
 Write-Host "Starting Windows pre-install steps..."
 
-# 1. Create a new user with a static password
+# Section 1: Create a new user with a static password
+# This section creates a new local user, sets their password from the USER_PASSWORD environment variable,
+# and adds them to the local Administrators group.
 Write-Host "Step 1: Creating new user '$Username'..."
 try {
     $Password = ConvertTo-SecureString $env:USER_PASSWORD -AsPlainText -Force
@@ -48,7 +91,9 @@ try {
     Write-Error "Failed to create user: $_"
 }
 
-# 2. Optional Installations
+# Section 2: Optional Software Installations
+# This section installs various software based on the boolean flags passed to the script.
+# All installations are performed using the Chocolatey package manager.
 if ($InstallVirtualSoundCardBool) {
     Write-Host "Installing and configuring virtual audio..."
     try {
@@ -63,6 +108,7 @@ if ($InstallVirtualSoundCardBool) {
         if (-not (Test-Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services')) {
             New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Force | Out-Null
         }
+        # Allow audio capture redirection in RDP sessions.
         Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name "fEnableAudioCapture" -Value 1 -Type DWord -Force
         Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "fDisableAudioCapture" -Value 0 -Type DWord -Force
         Write-Host "Audio setup is complete."
@@ -124,7 +170,9 @@ if ($InstallVSCodeBool) {
 }
 
 
-# 3. Set Default Browser
+# Section 3: Set Default Browser
+# This section sets the default browser for HTTP and HTTPS protocols based on user input.
+# It generates a default application association XML and imports it using DISM.
 if ($SetDefaultBrowser -ne 'none') {
     Write-Host "Setting default browser to $SetDefaultBrowser..."
     $progId = ""
@@ -165,10 +213,14 @@ if ($SetDefaultBrowser -ne 'none') {
     }
 }
 
-# 4. Enable Remote Desktop
+# Section 4: Enable Remote Desktop
+# This section enables Remote Desktop connections by modifying the registry
+# and enabling the necessary firewall rules.
 Write-Host "Step 4: Enabling Remote Desktop..."
 try {
+    # This registry key enables RDP connections. A value of 0 means "allow".
     Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+    # This command enables the built-in "Remote Desktop" firewall rule group.
     Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
     Write-Host "Remote Desktop enabled."
 } catch {

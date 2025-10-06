@@ -1,115 +1,149 @@
 <div align="center">
   <img src="https://i.postimg.cc/SxLbYS2C/20250929-143416.png" width="120" height="120" style="border-radius:50%">
+  <h1>VM with GitHub Actions</h1>
+</div>
 
 <div align="center">
-  
-# VM with GitHub Actions
 
-**This repository contains scripts and workflows for the initial setup of Github Runner VMs and configuration of servers for various operating systems. These scripts are designed to automate the pre-installation process, ensuring a consistent and reliable environment for our applications.**
+**This repository provides scripts and workflows to create temporary Virtual Machines (VMs) using GitHub Actions, with pre-configured environments for Windows, macOS, and Ubuntu.**
 
-[Overview](#overview) • [How it works](#how-it-works) • [Installation](#installation) • [How to use](#how-to-use) • [Secrets Configuration](#secrets-configuration)
-
-</div> </div>
-
-## <a name="overview"></a>Overview
-
-> [!WARNING]
-> **macOS and Ubuntu versions are currently not being maintained and may cause crashes. Please use Windows Server 2025 for stable operation.**
-
-This project leverages GitHub Actions to provide you with a temporary, free virtual machine. The workflows and scripts in this repository automate the initial setup of GitHub Runner VMs, including the configuration of servers for Windows, macOS, and Ubuntu.
-
-## How it works
-
-This project leverages GitHub Actions to provide you with a temporary, free virtual machine. Here's the basic workflow:
-
-1.  **Triggering the Action**: When you run a workflow in the "Actions" tab, GitHub provisions a fresh virtual machine (VM) with the operating system you choose (Windows, Ubuntu, or macOS).
-2.  **Running the Script**: The action then executes one of the pre-installation scripts from this repository on the new VM.
-3.  **Setting up Remote Access**: The script installs the necessary software for remote access (RDP for Windows/Ubuntu, VNC for macOS) and creates a new user account with the password you provide in the `USER_PASSWORD` secret.
-4.  **Creating a Secure Tunnel**: The script then installs `ngrok` and uses your `NGROK_AUTH_TOKEN` to create a secure tunnel from the public internet to the remote desktop port on the VM.
-5.  **Accessing the VM**: The unique ngrok URL for your session is printed in the GitHub Actions logs. You can use this URL with any standard RDP or VNC client to connect to your temporary VM.
-
-Since the VM is part of a GitHub Actions job, it is temporary and will be destroyed once the job finishes (after a maximum of 6 hours).
-
-## Installation
-
-1.  **Fork this repository**: Click the "Fork" button at the top-right of this page to create your own copy.
-2.  **Add secrets**: Go to your forked repository's `Settings` > `Secrets and variables` > `Actions` and add the necessary secrets as described in the "Secrets Configuration" section below.
-3.  **Run workflow**: Go to the "Actions" tab of your repository, select the desired workflow, and run it.
-
-## <a name="how-to-use"></a>How to use
-
-Once the GitHub Actions workflow is running, you need to find the connection details from the logs and use a remote desktop client to connect.
-
-**Step 1: Get Connection Details from Workflow Logs**
-1.  Go to the **Actions** tab in your repository and click on the running workflow.
-2.  Look for the **Display Connection Details** step in the logs.
-3.  You will find the connection address (e.g., `0.tcp.ngrok.io`) and port (e.g., `12345`).
-
-**Step 2: Connect to the VM**
-You will need a remote desktop client to connect to the VM.
-
-*   **For RDP (Windows & Ubuntu):**
-    *   We recommend using the [Windows App](https://play.google.com/store/apps/details?id=com.microsoft.rdc.androidx) client.
-    *   Enter the address and port from the logs.
-    *   Use the username you provided and the password you set in the `USER_PASSWORD` secret.
-
-*   **For VNC (macOS):**
-    *   We recommend using the [VNC Viewer](https://play.google.com/store/apps/details?id=com.realvnc.viewer.android) client.
-    *   Enter the address and port from the logs.
-    *   Use the username you provided and the password you set in the `USER_PASSWORD` secret.
-
-## <a name="workflow-inputs"></a>Workflow Inputs
-
-When running a workflow, you can customize the VM setup using the following inputs:
-
-| Input | Description | Type | Default |
-| :--- | :--- | :--- | :--- |
-| `username` | The username for the new user account. | `string` | **Required** |
-| `tunnel_provider` | The tunneling service to use. Can be `ngrok` or `cloudflare`. | `string` | `ngrok` |
-| `region` | The ngrok tunnel region to use (e.g., `us`, `eu`, `ap`). | `string` | `us` |
-| `timeout` | The session timeout in minutes (max 360). | `string` | `360` |
-| `install_virtual_sound_card` | Install a virtual sound card. | `boolean` | `false` |
-| `install_github_desktop` | Install GitHub Desktop (Windows/macOS only). | `boolean` | `false` |
-| `install_browseros` | Install BrowserOS (Windows only, placeholder). | `boolean` | `false` |
-| `install_void_editor` | Install Void Editor (Windows only, placeholder). | `boolean` | `false` |
-| `install_android_studio` | Install Android Studio (Windows only). | `boolean` | `false` |
-| `install_vscode` | Install Visual Studio Code. | `boolean` | `false` |
-| `set_default_browser` | Set the default browser (Windows only). Can be `chrome` or `browseros`. | `string` | `chrome` |
-
-## <a name="secrets-configuration"></a>Secrets Configuration
-
-The following secrets must be added to your repository for the scripts to function correctly. We are using "USER_PASSWORD" as a GitHub environment secret.
-
-| Secret | Description | Example |
-| :--- | :--- | :--- |
-| `NGROK_AUTH_TOKEN` | Your authentication token from the [ngrok dashboard](https://dashboard.ngrok.com/get-started/your-authtoken). Required if `tunnel_provider` is `ngrok`. | `2aBcDeFgHiJkLmNoPqRsTuVwXyZ_123456789` |
-| `CF_TUNNEL_TOKEN` | Your Cloudflare Tunnel token. Required if `tunnel_provider` is `cloudflare`. | `your-long-cloudflare-token` |
-| `USER_PASSWORD` | **Required**. The password for the new user account that will be created on the VM. | `your-strong-password` |
-
-## Optional Pre-installed Software and Configurations
-
-You can choose to install additional software using the workflow inputs. The following table details the available software for each operating system:
-
-| Operating System | Optional Software/Configuration |
-| :--- | :--- |
-| **macOS** | - **Virtual Sound Card**: Installs BlackHole 2ch, a virtual audio driver. <br> - **GitHub Desktop**: Installs the GitHub Desktop application. <br> - **VS Code**: Installs Visual Studio Code. |
-| **Ubuntu** | - **Virtual Sound Card**: Installs and loads the `snd-aloop` kernel module. <br> - **VS Code**: Installs Visual Studio Code. |
-| **Windows** | - **Virtual Sound Card**: Installs VB-CABLE and enables necessary audio services. <br> - **GitHub Desktop**: Installs the GitHub Desktop application. <br> - **BrowserOS**: Installs BrowserOS (placeholder). <br> - **Void Editor**: Installs Void Editor (placeholder). <br> - **Android Studio**: Installs Android Studio. <br> - **VS Code**: Installs Visual Studio Code. <br> - **Set Default Browser**: Sets the default browser to Chrome or BrowserOS. |
-
-In addition to the optional software, the following base configurations are always applied:
-
-| Operating System | Base Configuration |
-| :--- | :--- |
-| **All** | - A new user account is created with the specified username and password. <br> - The user is granted administrative/sudo privileges. <br> - Remote access (RDP/VNC) is enabled. |
+</div>
 
 ---
 
-## Disclaimer
+## 📚 Table of Contents
 
-| Limitation | Details |
-| :--- | :--- |
-| **Max Runtime** | Each job can run for a maximum of 6 hours. |
-| **Persistency** | All your work will be gone when the job is complete. There is no data persistence. |
-| **Usage Limits (Free Tier)** | - **Public Repositories**: Unlimited minutes/month. <br> - **Private Repositories**: 2000 minutes/month. <br> *(These limits may be higher on paid tiers)*. |
+- [Overview](#overview)
+- [How It Works](#how-it-works)
+- [Repository Structure](#repository-structure)
+- [Getting Started](#getting-started)
+  - [1. Fork the Repository](#1-fork-the-repository)
+  - [2. Configure Secrets](#2-configure-secrets)
+  - [3. Run the Workflow](#3-run-the-workflow)
+- [How to Connect](#how-to-connect)
+  - [Step 1: Get Connection Details](#step-1-get-connection-details)
+  - [Step 2: Connect to the VM](#step-2-connect-to-the-vm)
+- [Customization](#customization)
+  - [Workflow Inputs](#workflow-inputs)
+  - [Secrets Configuration](#secrets-configuration)
+  - [Available Software](#available-software)
+- [Disclaimer](#disclaimer)
 
-**Do not use these VMs for mining cryptocurrency, gaming, or any other unethical tasks. Your GitHub account may be flagged or permanently suspended.**
+---
+
+## <a name="overview"></a>Overview
+
+This project leverages GitHub Actions to provide you with a temporary, free virtual machine for development, testing, or exploration. The workflows and scripts in this repository automate the initial setup of GitHub Runner VMs, including the configuration of servers for Windows, macOS, and Ubuntu, and provide remote access via RDP or VNC.
+
+> [!WARNING]
+> **macOS and Ubuntu versions are currently not being maintained and may cause crashes. Please use Windows Server for stable operation.**
+
+## <a name="how-it-works"></a>How It Works
+
+The process is fully automated through GitHub Actions:
+
+1.  **Trigger Workflow**: When you manually run a workflow from the "Actions" tab, GitHub provisions a fresh virtual machine.
+2.  **Execute Pre-install Script**: The workflow executes a pre-installation script (`preinstall-windows.ps1`, `preinstall-mac.sh`, or `preinstall-ubuntu.sh`) on the VM.
+3.  **User and Software Setup**: The script creates a new user account with your specified password and installs any optional software you selected (like VS Code or GitHub Desktop).
+4.  **Enable Remote Access**: It configures the operating system for remote connections (RDP for Windows/Ubuntu, VNC for macOS).
+5.  **Create Secure Tunnel**: The workflow uses `ngrok` or `Cloudflare` to create a secure tunnel from a public URL to the VM's remote desktop port.
+6.  **Output Connection Details**: The public URL and port for the connection are printed in the GitHub Actions logs, allowing you to connect from anywhere.
+
+The VM is temporary and will be destroyed when the GitHub Actions job finishes (after a maximum of 6 hours).
+
+## <a name="repository-structure"></a>Repository Structure
+
+```
+.
+├── .github/workflows/   # Contains the GitHub Actions workflow files (not visible here)
+├── scripts/
+│   ├── preinstall-mac.sh      # Setup script for macOS
+│   ├── preinstall-ubuntu.sh   # Setup script for Ubuntu
+│   └── preinstall-windows.ps1 # Setup script for Windows
+├── README.md              # This file
+└── Release-Notes.md       # Project release notes
+```
+
+## <a name="getting-started"></a>Getting Started
+
+### 1. Fork the Repository
+
+Click the **Fork** button at the top-right of this page to create your own copy of this repository.
+
+### 2. Configure Secrets
+
+Navigate to your forked repository's `Settings` > `Secrets and variables` > `Actions`. Add the required secrets as described in the [Secrets Configuration](#secrets-configuration) section below. At a minimum, you must set `USER_PASSWORD`.
+
+### 3. Run the Workflow
+
+Go to the **Actions** tab of your forked repository, select the desired OS workflow (e.g., "Windows VM"), and click **Run workflow**. You can customize the VM by filling out the input fields before running.
+
+## <a name="how-to-connect"></a>How to Connect
+
+### Step 1: Get Connection Details
+
+1.  In the **Actions** tab, click on the running workflow.
+2.  Wait for the job to reach the **Display Connection Details** step in the logs.
+3.  The logs will show the connection **Address** (e.g., `0.tcp.ngrok.io`) and **Port** (e.g., `12345`).
+
+### Step 2: Connect to the VM
+
+-   **For RDP (Windows & Ubuntu):**
+    -   Use any RDP client (e.g., Microsoft Remote Desktop).
+    -   Enter the **Address:Port** from the logs.
+    -   Use the `username` you provided and the password from your `USER_PASSWORD` secret.
+
+-   **For VNC (macOS):**
+    -   Use any VNC client (e.g., VNC Viewer).
+    -   Enter the **Address:Port** from the logs.
+    -   Use the `username` you provided and the password from your `USER_PASSWORD` secret.
+
+## <a name="customization"></a>Customization
+
+### <a name="workflow-inputs"></a>Workflow Inputs
+
+You can customize the VM setup using the following workflow inputs:
+
+| Input                         | Description                                                    | Type      | Default      |
+| :---------------------------- | :------------------------------------------------------------- | :-------- | :----------- |
+| `username`                    | The username for the new user account.                         | `string`  | **Required** |
+| `tunnel_provider`             | The tunneling service to use. Can be `ngrok` or `cloudflare`.  | `string`  | `ngrok`      |
+| `region`                      | The ngrok tunnel region (`us`, `eu`, `ap`, etc.).              | `string`  | `us`         |
+| `timeout`                     | The session timeout in minutes (max 360).                      | `string`  | `360`        |
+| `install_virtual_sound_card`  | Install a virtual sound card.                                  | `boolean` | `false`      |
+| `install_github_desktop`      | Install GitHub Desktop (Windows/macOS only).                   | `boolean` | `false`      |
+| `install_browseros`           | Install BrowserOS (Windows only, placeholder).                 | `boolean` | `false`      |
+| `install_void_editor`         | Install Void Editor (Windows only, placeholder).               | `boolean` | `false`      |
+| `install_android_studio`      | Install Android Studio (Windows only).                         | `boolean` | `false`      |
+| `install_vscode`              | Install Visual Studio Code.                                    | `boolean` | `false`      |
+| `set_default_browser`         | Set default browser (Windows only). Can be `chrome` or `browseros`. | `string`  | `chrome`     |
+
+### <a name="secrets-configuration"></a>Secrets Configuration
+
+| Secret             | Description                                                                                             | Example                               |
+| :----------------- | :------------------------------------------------------------------------------------------------------ | :------------------------------------ |
+| `USER_PASSWORD`    | **Required**. The password for the new user account created on the VM.                                  | `your-strong-password`                |
+| `NGROK_AUTH_TOKEN` | Your auth token from the [ngrok dashboard](https://dashboard.ngrok.com/get-started/your-authtoken). Required for the `ngrok` tunnel provider. | `2aBcDeFgHiJkLmNoPqRsTuVwXyZ_12345` |
+| `CF_TUNNEL_TOKEN`  | Your Cloudflare Tunnel token. Required for the `cloudflare` tunnel provider.                             | `your-long-cloudflare-token`          |
+
+### <a name="available-software"></a>Available Software
+
+The following software can be installed on each OS via the workflow inputs:
+
+| Operating System | Optional Software/Configuration                                                                                                                                                                                                                           |
+| :--------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **macOS**        | **Virtual Sound Card**: Installs BlackHole 2ch. <br> **GitHub Desktop**: Installs GitHub Desktop. <br> **VS Code**: Installs Visual Studio Code.                                                                                                            |
+| **Ubuntu**       | **Virtual Sound Card**: Installs and loads the `snd-aloop` kernel module. <br> **VS Code**: Installs Visual Studio Code.                                                                                                                                   |
+| **Windows**      | **Virtual Sound Card**: Installs VB-CABLE. <br> **GitHub Desktop**: Installs GitHub Desktop. <br> **BrowserOS / Void Editor / Android Studio / VS Code**: Installs the respective applications. <br> **Set Default Browser**: Sets the default browser. |
+
+---
+
+## <a name="disclaimer"></a>Disclaimer
+
+| Limitation      | Details                                                                                                                            |
+| :-------------- | :--------------------------------------------------------------------------------------------------------------------------------- |
+| **Max Runtime** | Each job can run for a maximum of 6 hours.                                                                                         |
+| **Persistency** | All data and changes will be lost when the job completes.                                                                          |
+| **Usage Limits**| GitHub provides a free tier of Actions minutes for public and private repositories. Check your account plan for specific limits. |
+
+**Responsible Use**: Do not use these VMs for cryptocurrency mining, torrenting, or any other illegal or unethical activities. Misuse may result in your GitHub account being flagged or permanently suspended.
