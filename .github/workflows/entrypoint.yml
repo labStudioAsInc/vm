@@ -61,6 +61,7 @@ jobs:
     with:
       username: ${{ github.event.inputs.username }}
       tunnel_provider: ${{ github.event.inputs.tunnel_provider }}
+      region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
       install_virtual_sound_card: ${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}
       install_github_desktop: ${{ contains(github.event.inputs.install_apps, 'github_desktop') }}

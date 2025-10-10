@@ -11,6 +11,11 @@ on:
         description: 'Select Tunnel Provider'
         required: true
         type: string
+      region:
+        description: 'Select Ngrok Tunnel Region'
+        required: false
+        type: string
+        default: 'us'
       timeout:
         description: 'Session Timeout (minutes, max 360)'
         required: true
@@ -111,7 +116,7 @@ jobs:
           unzip -o ngrok.zip
 
           echo "Starting ngrok tunnel on port $PORT..."
-          pwsh -Command "Start-Process -NoNewWindow -FilePath 'ngrok.exe' -ArgumentList 'tcp $PORT --config $CONFIG_FILE --log $NGROK_LOG'"
+          pwsh -Command "Start-Process -NoNewWindow -FilePath 'ngrok.exe' -ArgumentList 'tcp $PORT --config $CONFIG_FILE --log $NGROK_LOG --region=${{ inputs.region }}'"
 
           echo "Waiting for ngrok to start..."
           sleep 15
