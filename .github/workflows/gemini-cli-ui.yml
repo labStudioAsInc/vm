@@ -1,6 +1,33 @@
 name: Gemini CLI UI
 
 on:
+  workflow_dispatch:
+    inputs:
+      tunnel_provider:
+        description: 'Select Tunnel Provider'
+        required: true
+        type: choice
+        options:
+          - ngrok
+        default: 'ngrok'
+      region:
+        description: 'Select Ngrok Tunnel Region'
+        required: true
+        type: choice
+        options:
+          - us - United States (Ohio)
+          - eu - Europe (Frankfurt)
+          - ap - Asia/Pacific (Singapore)
+          - au - Australia (Sydney)
+          - sa - South America (São Paulo)
+          - jp - Japan (Tokyo)
+          - in - India (Mumbai)
+        default: 'us'
+      timeout:
+        description: 'Session Timeout (minutes, max 360)'
+        required: true
+        type: string
+        default: '60'
   workflow_call:
     inputs:
       tunnel_provider:
@@ -22,7 +49,7 @@ on:
 jobs:
   gemini-cli-ui-session:
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ fromJSON(inputs.timeout) }}
+    timeout-minutes: ${{ fromJSON(github.event.inputs.timeout || inputs.timeout) }}
 
     steps:
       - name: Checkout Code
@@ -52,10 +79,10 @@ jobs:
         shell: bash
 
       - name: Setup Ngrok Tunnel
-        if: inputs.tunnel_provider == 'ngrok'
+        if: (github.event.inputs.tunnel_provider || inputs.tunnel_provider) == 'ngrok'
         shell: bash
         run: |
-          REGION="${{ inputs.region }}"
+          REGION="${{ github.event.inputs.region || inputs.region }}"
           AUTH_TOKEN="${{ secrets.NGROK_AUTH_TOKEN }}"
           NGROK_LOG="ngrok.log"
           CONFIG_FILE="ngrok.yml"
@@ -97,7 +124,7 @@ jobs:
           echo "Tunnel established successfully: $TUNNEL_URL"
 
       - name: Display Connection Details (Ngrok)
-        if: inputs.tunnel_provider == 'ngrok'
+        if: (github.event.inputs.tunnel_provider || inputs.tunnel_provider) == 'ngrok'
         run: |
           echo "🎯 CONNECTION DETAILS 🎯"
           echo "=========================================="
@@ -110,6 +137,6 @@ jobs:
         shell: bash
         run: |
           echo "Gemini CLI UI session is now active!"
-          echo "The workflow will remain running for ${{ inputs.timeout }} minutes."
+          echo "The workflow will remain running for ${{ github.event.inputs.timeout || inputs.timeout }} minutes."
           echo "Press Ctrl+C in the workflow logs to terminate the session early."
-          sleep ${{ inputs.timeout }}m
+          sleep ${{ github.event.inputs.timeout || inputs.timeout }}m
