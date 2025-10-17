@@ -70,12 +70,11 @@ jobs:
           git clone https://github.com/cruzyjapan/Gemini-CLI-UI.git
         shell: bash
 
-      - name: Install Dependencies and Run
+      - name: Install Dependencies
         working-directory: ./Gemini-CLI-UI
         run: |
           npm install
           cp .env.example .env
-          npm run dev > ../gemini-output.log 2>&1 &
         shell: bash
 
       - name: Setup Ngrok Tunnel
@@ -131,6 +130,13 @@ jobs:
           echo "OS: ubuntu-latest"
           echo "Gemini CLI UI URL: ${{ env.TUNNEL_URL }}"
           echo "=========================================="
+        shell: bash
+
+      - name: Configure Vite and Run Application
+        working-directory: ./Gemini-CLI-UI
+        run: |
+          sed -i "/server: {/a \ \ \ \ allowedHosts: ['*']," vite.config.js
+          npm run dev > ../gemini-output.log 2>&1 &
         shell: bash
 
       - name: Keep Workflow Alive
