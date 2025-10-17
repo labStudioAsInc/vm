@@ -135,7 +135,7 @@ jobs:
       - name: Configure Vite and Run Application
         working-directory: ./Gemini-CLI-UI
         run: |
-          sed -i "/server: {/a \ \ \ \ allowedHosts: ['*']," vite.config.js
+          sed -i "/^\s*server: {/a \ \ \ \ \ \ allowedHosts: ['*']," vite.config.js
           npm run dev > ../gemini-output.log 2>&1 &
         shell: bash
 
