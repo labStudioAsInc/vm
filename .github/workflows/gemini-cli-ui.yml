@@ -82,7 +82,7 @@ jobs:
         if: (github.event.inputs.tunnel_provider || inputs.tunnel_provider) == 'ngrok'
         shell: bash
         run: |
-          REGION="${{ github.event.inputs.region || inputs.region }}"
+          REGION=$(echo "${{ github.event.inputs.region || inputs.region }}" | awk '{print $1}')
           AUTH_TOKEN="${{ secrets.NGROK_AUTH_TOKEN }}"
           NGROK_LOG="ngrok.log"
           CONFIG_FILE="ngrok.yml"
