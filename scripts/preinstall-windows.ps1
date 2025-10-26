@@ -35,6 +35,11 @@ if (-not $env:NGROK_AUTH_TOKEN) {
     exit 1
 }
 
+if (-not $env:GOOGLE_DRIVE_API_KEY) {
+    Write-Error "Error: GOOGLE_DRIVE_API_KEY environment variable is not set."
+    exit 1
+}
+
 Write-Host "Starting Windows pre-install steps..."
 
 # 1. Create a new user with a static password

@@ -16,6 +16,9 @@
 > [!WARNING]
 > **macOS and Ubuntu versions are currently not being maintained and may cause crashes. Please use Windows Server 2025 for stable operation.**
 
+> [!NOTE]
+> **Windows Server 2025 now includes Google Drive integration for persistent storage! Your files, settings, and work will be automatically backed up and restored between sessions.**
+
 This project leverages GitHub Actions to provide you with a temporary, free virtual machine. The workflows and scripts in this repository automate the initial setup of GitHub Runner VMs, including the configuration of servers for Windows, macOS, and Ubuntu.
 
 ## How it works
@@ -29,6 +32,25 @@ This project leverages GitHub Actions to provide you with a temporary, free virt
 5.  **Accessing the VM**: The unique ngrok URL for your session is printed in the GitHub Actions logs. You can use this URL with any standard RDP or VNC client to connect to your temporary VM.
 
 Since the VM is part of a GitHub Actions job, it is temporary and will be destroyed once the job finishes (after a maximum of 6 hours).
+
+## Persistent Storage with Google Drive (Windows Server 2025)
+
+**NEW**: Windows Server 2025 sessions now support persistent storage through Google Drive API integration:
+
+- **Automatic Backup**: Your user data (Desktop, Documents, Downloads, AppData, SSH keys, Git config) is automatically backed up to Google Drive when the session ends
+- **Automatic Restore**: When you start a new session, your previous data is automatically restored from Google Drive
+- **Periodic Backups**: Data is backed up every 30 minutes during active sessions
+- **Manual Control**: Desktop shortcuts allow you to manually backup, restore, or check backup status
+- **2TB Storage**: Utilizes your Google Drive storage (2TB for 1 year as mentioned)
+
+### What Gets Backed Up:
+- Desktop files and folders
+- Documents folder
+- Downloads folder  
+- Application settings (AppData/Roaming)
+- SSH keys and configuration
+- Git configuration
+- Any files you save in these locations
 
 ## Installation
 
@@ -58,6 +80,16 @@ You will need a remote desktop client to connect to the VM.
     *   Enter the address and port from the logs.
     *   Use the username you provided and the password you set in the `USER_PASSWORD` secret.
 
+**Step 3: Using Google Drive Persistence (Windows Server 2025 only)**
+
+Once connected to your Windows RDP session, you'll find three shortcuts on the desktop:
+
+- **"Backup to Google Drive.bat"** - Manually create a backup of your current session
+- **"Restore from Google Drive.bat"** - Manually restore data from your latest backup  
+- **"Check Backup Status.bat"** - View information about your current backup
+
+These shortcuts provide manual control over the backup system, in addition to the automatic backups that occur every 30 minutes and at session end.
+
 ## <a name="workflow-inputs"></a>Workflow Inputs
 
 When running a workflow, you can customize the VM setup using the following inputs:
@@ -85,6 +117,7 @@ The following secrets must be added to your repository for the scripts to functi
 | `NGROK_AUTH_TOKEN` | Your authentication token from the [ngrok dashboard](https://dashboard.ngrok.com/get-started/your-authtoken). Required if `tunnel_provider` is `ngrok`. | `2aBcDeFgHiJkLmNoPqRsTuVwXyZ_123456789` |
 | `CF_TUNNEL_TOKEN` | Your Cloudflare Tunnel token. Required if `tunnel_provider` is `cloudflare`. | `your-long-cloudflare-token` |
 | `USER_PASSWORD` | **Required**. The password for the new user account that will be created on the VM. | `your-strong-password` |
+| `GOOGLE_DRIVE_API_KEY` | **Required for Windows Server 2025**. Your Google Drive API key for persistent storage. See [Google Drive Setup Guide](GOOGLE_DRIVE_SETUP.md) for detailed instructions. | `AIzaSyBcDeFgHiJkLmNoPqRsTuVwXyZ123456789` |
 
 ## Optional Pre-installed Software and Configurations
 
@@ -109,7 +142,8 @@ In addition to the optional software, the following base configurations are alwa
 | Limitation | Details |
 | :--- | :--- |
 | **Max Runtime** | Each job can run for a maximum of 6 hours. |
-| **Persistency** | All your work will be gone when the job is complete. There is no data persistence. |
+| **Persistency** | - **Windows Server 2025**: Full data persistence via Google Drive integration <br> - **macOS/Ubuntu**: All your work will be gone when the job is complete (no persistence) |
 | **Usage Limits (Free Tier)** | - **Public Repositories**: Unlimited minutes/month. <br> - **Private Repositories**: 2000 minutes/month. <br> *(These limits may be higher on paid tiers)*. |
+| **Storage Requirements** | **Windows Server 2025**: Requires Google Drive API key and uses your Google Drive storage quota |
 
 **Do not use these VMs for mining cryptocurrency, gaming, or any other unethical tasks. Your GitHub account may be flagged or permanently suspended.**
