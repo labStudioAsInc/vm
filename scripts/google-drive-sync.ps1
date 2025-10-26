@@ -99,6 +99,7 @@ function Backup-UserData {
         @{Source = "$UserProfile\Documents"; Dest = "$BackupPath\Documents"},
         @{Source = "$UserProfile\Downloads"; Dest = "$BackupPath\Downloads"},
         @{Source = "$UserProfile\AppData\Roaming"; Dest = "$BackupPath\AppData\Roaming"},
+        @{Source = "$UserProfile\AppData\Local\Google\Chrome\User Data"; Dest = "$BackupPath\Chrome\User Data"},
         @{Source = "$UserProfile\.ssh"; Dest = "$BackupPath\.ssh"},
         @{Source = "$UserProfile\.gitconfig"; Dest = "$BackupPath\.gitconfig"}
     )
@@ -166,9 +167,10 @@ function Backup-UserData {
         $localBackupPath = "$localBackupDir\$BackupFileName"
         Copy-Item -Path $zipPath -Destination $localBackupPath -Force
         Write-Host "Backup saved locally: $localBackupPath"
+        Write-Host "This backup will be uploaded as a GitHub Actions artifact"
         
-        # Cleanup temp file
-        Remove-Item -Path $zipPath -Force
+        # Keep temp file for artifact upload, don't remove it yet
+        Write-Host "Backup also available at: $zipPath"
         Remove-Item -Path $BackupPath -Recurse -Force
         
         return $false  # Return false since Google Drive upload failed
@@ -229,6 +231,7 @@ function Restore-UserData {
             @{Source = "$BackupPath\Documents"; Dest = "$UserProfile\Documents"},
             @{Source = "$BackupPath\Downloads"; Dest = "$UserProfile\Downloads"},
             @{Source = "$BackupPath\AppData\Roaming"; Dest = "$UserProfile\AppData\Roaming"},
+            @{Source = "$BackupPath\Chrome\User Data"; Dest = "$UserProfile\AppData\Local\Google\Chrome\User Data"},
             @{Source = "$BackupPath\.ssh"; Dest = "$UserProfile\.ssh"},
             @{Source = "$BackupPath\.gitconfig"; Dest = "$UserProfile\.gitconfig"}
         )

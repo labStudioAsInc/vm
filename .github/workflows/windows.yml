@@ -271,17 +271,24 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: |
           Write-Host "Creating final backup before shutdown..."
-          if (-not $env:GOOGLE_DRIVE_API_KEY -and -not $env:GOOGLE_SERVICE_ACCOUNT_JSON) {
-            Write-Warning "No Google Drive authentication configured. Skipping final backup."
-          } else {
-            try {
-              ./scripts/google-drive-sync.ps1 -Action "backup" -Username "${{ inputs.username }}"
-              Write-Host "Final backup completed successfully"
-            } catch {
-              Write-Warning "Final backup failed: $_"
-            }
+          try {
+            ./scripts/google-drive-sync.ps1 -Action "backup" -Username "${{ inputs.username }}"
+            Write-Host "Final backup completed successfully"
+          } catch {
+            Write-Warning "Final backup failed: $_"
           }
         shell: pwsh
+
+      - name: Upload backup as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-session-backup-${{ inputs.username }}-${{ github.run_number }}
+          path: |
+            C:\RDPBackups\rdp-session-${{ inputs.username }}.zip
+            ${{ env.TEMP }}\rdp-session-${{ inputs.username }}.zip
+          retention-days: 30
+          if-no-files-found: warn
 
       - name: Clean up cloudflared process
         if: always() && inputs.tunnel_provider == 'cloudflare'
