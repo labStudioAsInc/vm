@@ -73,6 +73,7 @@ jobs:
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
       USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
+      GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
 
   call-macos-workflow:
     if: ${{ github.event.inputs.os == 'macos-latest' }}
