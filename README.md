@@ -11,27 +11,61 @@
 
 </div> </div>
 
+## 🚀 Quick Start
+
+1. **Fork this repository** → Click "Fork" button above
+2. **Add secrets** → Go to Settings → Secrets and variables → Actions
+   - Add `USER_PASSWORD` (your VM password)  
+   - Add `NGROK_AUTH_TOKEN` (from [ngrok.com](https://dashboard.ngrok.com/get-started/your-authtoken))
+   - Add `GOOGLE_SERVICE_ACCOUNT_JSON` (optional, for Windows persistence)
+3. **Run workflow** → Actions tab → "Main Entrypoint" → Run workflow
+4. **Connect** → Use connection details from workflow logs with RDP/VNC client
+
+> [!TIP]
+> **First time?** Use Windows with default settings for the best experience!
+
 ## <a name="overview"></a>Overview
 
 > [!WARNING]
-> **macOS and Ubuntu versions are currently not being maintained and may cause crashes. Please use Windows Server 2025 for stable operation.**
+> **macOS and Ubuntu versions are currently not being maintained and may cause crashes. Please use Windows for stable operation.**
 
 > [!NOTE]
-> **Windows Server 2025 now includes Google Drive integration for persistent storage! Your files, settings, and work will be automatically backed up and restored between sessions.**
+> **Windows includes Google Drive integration for persistent storage!** Your files, browser sessions, and app settings are automatically backed up and restored between sessions.
 
-This project leverages GitHub Actions to provide you with a temporary, free virtual machine. The workflows and scripts in this repository automate the initial setup of GitHub Runner VMs, including the configuration of servers for Windows, macOS, and Ubuntu.
+**Free virtual machines via GitHub Actions** - Get instant access to Windows, macOS, or Ubuntu desktops with remote access, software installation, and persistent storage (Windows only).
 
 ## How it works
 
-This project leverages GitHub Actions to provide you with a temporary, free virtual machine. Here's the basic workflow:
+This project uses GitHub Actions to provide free virtual machines with remote desktop access:
 
-1.  **Triggering the Action**: When you run a workflow in the "Actions" tab, GitHub provisions a fresh virtual machine (VM) with the operating system you choose (Windows, Ubuntu, or macOS).
-2.  **Running the Script**: The action then executes one of the pre-installation scripts from this repository on the new VM.
-3.  **Setting up Remote Access**: The script installs the necessary software for remote access (RDP for Windows/Ubuntu, VNC for macOS) and creates a new user account with the password you provide in the `USER_PASSWORD` secret.
-4.  **Creating a Secure Tunnel**: The script then installs `ngrok` and uses your `NGROK_AUTH_TOKEN` to create a secure tunnel from the public internet to the remote desktop port on the VM.
-5.  **Accessing the VM**: The unique ngrok URL for your session is printed in the GitHub Actions logs. You can use this URL with any standard RDP or VNC client to connect to your temporary VM.
+### 🚀 **Workflow Process**
 
-Since the VM is part of a GitHub Actions job, it is temporary and will be destroyed once the job finishes (after a maximum of 6 hours).
+1. **🎯 Trigger**: Run workflow from **Actions** tab → Select OS and configuration
+2. **⚡ Provision**: GitHub creates fresh VM (Windows/Ubuntu/macOS) 
+3. **🔧 Setup**: Installs software, creates user account, enables remote access
+4. **🌐 Tunnel**: Creates secure tunnel (ngrok/cloudflare) to VM desktop
+5. **💾 Restore** *(Windows only)*: Restores your data from Google Drive/GitHub artifacts
+6. **🖥️ Connect**: Use RDP/VNC client with connection details from logs
+7. **💾 Backup** *(Windows only)*: Multi-layered backup system:
+   - Every 30 minutes during session
+   - 5 minutes before timeout (with desktop notification)
+   - At session end (final backup)
+   - Emergency backup on unexpected termination
+
+### ⏱️ **Session Lifecycle**
+
+- **Duration**: Up to 6 hours maximum
+- **Persistence**: 
+  - **Windows**: Full data persistence via Google Drive
+  - **macOS/Ubuntu**: Temporary (data lost after session)
+- **Access**: Immediate remote desktop connection via secure tunnel
+
+### 🔒 **Security Features**
+
+- Encrypted tunnels (ngrok/cloudflare)
+- Isolated VM environment  
+- Automatic cleanup after session
+- Secure credential handling via GitHub secrets
 
 ## Persistent Storage with Google Drive (Windows Server 2025)
 
@@ -40,17 +74,48 @@ Since the VM is part of a GitHub Actions job, it is temporary and will be destro
 - **Automatic Backup**: Your user data (Desktop, Documents, Downloads, AppData, SSH keys, Git config) is automatically backed up to Google Drive when the session ends
 - **Automatic Restore**: When you start a new session, your previous data is automatically restored from Google Drive
 - **Periodic Backups**: Data is backed up every 30 minutes during active sessions
+- **Pre-Timeout Backup**: Automatic backup 5 minutes before session timeout
+- **Emergency Backup**: Backup on unexpected session termination
 - **Manual Control**: Desktop shortcuts allow you to manually backup, restore, or check backup status
 - **2TB Storage**: Utilizes your Google Drive storage (2TB for 1 year as mentioned)
 
 ### What Gets Backed Up:
-- Desktop files and folders
-- Documents folder
-- Downloads folder  
-- Application settings (AppData/Roaming)
+
+#### User Data:
+- Desktop, Documents, Downloads, Pictures, Videos, Music folders
+- All user-created files and folders
+
+#### Browser Data (Complete Profiles):
+- **Chrome**: Login sessions, bookmarks, extensions, settings, passwords (encrypted)
+- **Edge**: Complete profile data including login sessions
+- **Firefox**: Profile data and settings (if installed)
+
+#### Development Tools:
+- **VS Code**: Settings, extensions, workspace configurations
+- **Git**: Configuration files and SSH keys
+- **Android Studio**: Settings and configurations
+- **JetBrains IDEs**: Settings for IntelliJ, PyCharm, WebStorm, etc.
+- **Node.js**: Global packages and npm configuration
+- **Python**: pip configuration and settings
+- **Docker**: Desktop settings and configurations
+
+#### Text Editors & IDEs:
+- Notepad++ settings and plugins
+- Sublime Text settings and packages
+- PowerShell profiles and configurations
+- Windows Terminal settings
+
+#### Communication & Productivity:
+- Slack settings and workspaces
+- Discord settings
+- Zoom settings
+- Microsoft Teams settings
+- Postman collections and settings
+
+#### System Configurations:
 - SSH keys and configuration
-- Git configuration
-- Any files you save in these locations
+- Application data (AppData/Roaming)
+- User-installed application settings
 
 ## Installation
 
@@ -92,57 +157,105 @@ These shortcuts provide manual control over the backup system, in addition to th
 
 ## <a name="workflow-inputs"></a>Workflow Inputs
 
-When running a workflow, you can customize the VM setup using the following inputs:
+Customize your VM when running the workflow from the **Actions** tab:
 
-| Input | Description | Type | Default |
-| :--- | :--- | :--- | :--- |
-| `username` | The username for the new user account. | `string` | **Required** |
-| `tunnel_provider` | The tunneling service to use. Can be `ngrok` or `cloudflare`. | `string` | `ngrok` |
-| `region` | The ngrok tunnel region to use (e.g., `us`, `eu`, `ap`). | `string` | `us` |
-| `timeout` | The session timeout in minutes (max 360). | `string` | `360` |
-| `install_virtual_sound_card` | Install a virtual sound card. | `boolean` | `false` |
-| `install_github_desktop` | Install GitHub Desktop (Windows/macOS only). | `boolean` | `false` |
-| `install_browseros` | Install BrowserOS (Windows only, placeholder). | `boolean` | `false` |
-| `install_void_editor` | Install Void Editor (Windows only, placeholder). | `boolean` | `false` |
-| `install_android_studio` | Install Android Studio (Windows only). | `boolean` | `false` |
-| `install_vscode` | Install Visual Studio Code. | `boolean` | `false` |
-| `set_default_browser` | Set the default browser (Windows only). Can be `chrome` or `browseros`. | `string` | `chrome` |
+### 🖥️ Basic Configuration
+
+| Input | Description | Type | Default | Platforms |
+| :--- | :--- | :--- | :--- | :--- |
+| `os` | Operating system to use | Choice | `windows-latest` | All |
+| `username` | Username for the VM account | String | **Required** | All |
+| `timeout` | Session duration in minutes (max 360) | String | `360` | All |
+
+### 🌐 Network & Access
+
+| Input | Description | Type | Default | Platforms |
+| :--- | :--- | :--- | :--- | :--- |
+| `tunnel_provider` | Tunnel service (`ngrok` or `cloudflare`) | Choice | `ngrok` | All |
+| `region` | Ngrok region (`us`, `eu`, `ap`, `au`, `sa`, `jp`, `in`) | Choice | `in` | ngrok only |
+
+> [!NOTE]
+> **Windows supports ngrok only**. Cloudflare tunnels work on macOS and Ubuntu.
+
+### 📦 Software Installation
+
+| Input | Description | Type | Default | Platforms |
+| :--- | :--- | :--- | :--- | :--- |
+| `install_apps` | Comma-separated app list | String | `''` | All |
+| `install_virtual_sound_card` | Audio driver installation | Boolean | `false` | All |
+| `install_github_desktop` | GitHub Desktop app | Boolean | `false` | Windows, macOS |
+| `install_vscode` | Visual Studio Code | Boolean | `false` | All |
+| `install_android_studio` | Android Studio IDE | Boolean | `false` | Windows |
+| `install_browseros` | BrowserOS (experimental) | Boolean | `false` | Windows |
+| `install_void_editor` | Void Editor (experimental) | Boolean | `false` | Windows |
+| `set_default_browser` | Default browser (`chrome` or `browseros`) | String | `chrome` | Windows |
+
+### 💾 Persistence (Windows Only)
+
+| Input | Description | Type | Default | Platforms |
+| :--- | :--- | :--- | :--- | :--- |
+| `enable_google_drive_persistence` | Backup/restore user data via Google Drive | Boolean | `true` | Windows |
+
+**Available Apps for `install_apps`:**
+`virtual_sound_card`, `github_desktop`, `browseros`, `void_editor`, `android_studio`, `vscode`
+
+**Example:** `virtual_sound_card,vscode,github_desktop`
 
 ## <a name="secrets-configuration"></a>Secrets Configuration
 
-The following secrets must be added to your repository for the scripts to function correctly. Go to your repository's **Settings** > **Secrets and variables** > **Actions** to add these secrets.
+Add these secrets to your repository: **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
 
-### Required Secrets
-
-| Secret | Description | Example |
-| :--- | :--- | :--- |
-| `USER_PASSWORD` | **Required**. The password for the new user account that will be created on the VM. Use a strong password. | `MySecurePassword123!` |
-
-### Tunnel Provider Secrets (Choose One)
+### 🔑 Required Secrets (All Platforms)
 
 | Secret | Description | Example |
 | :--- | :--- | :--- |
-| `NGROK_AUTH_TOKEN` | Your authentication token from the [ngrok dashboard](https://dashboard.ngrok.com/get-started/your-authtoken). Required if `tunnel_provider` is `ngrok` (default). | `2aBcDeFgHiJkLmNoPqRsTuVwXyZ_123456789` |
-| `CF_TUNNEL_TOKEN` | Your Cloudflare Tunnel token. Required if `tunnel_provider` is `cloudflare`. | `your-long-cloudflare-token` |
+| `USER_PASSWORD` | **Always Required**. Password for the VM user account. Use a strong password. | `MySecurePassword123!` |
+| `NGROK_AUTH_TOKEN` | **Required for ngrok** (default tunnel provider). Get from [ngrok dashboard](https://dashboard.ngrok.com/get-started/your-authtoken). | `2aBcDeFgHiJkLmNoPqRsTuVwXyZ_123456789` |
 
-### Google Drive Integration Secrets (Windows Server 2025 Only)
+### 🌐 Tunnel Provider Secrets (Platform-Specific)
 
-**Choose ONE of the following authentication methods:**
+| Platform | Secret | When Required | Description |
+| :--- | :--- | :--- | :--- |
+| **Windows** | `NGROK_AUTH_TOKEN` | Default (ngrok) | Works with both ngrok and cloudflare tunnels |
+| **macOS** | `NGROK_AUTH_TOKEN` | For ngrok | Required when `tunnel_provider` = `ngrok` |
+| **macOS** | `CF_TUNNEL_TOKEN` | For cloudflare | Required when `tunnel_provider` = `cloudflare` |
+| **Ubuntu** | `NGROK_AUTH_TOKEN` | For ngrok | Required when `tunnel_provider` = `ngrok` |
+| **Ubuntu** | `CF_TUNNEL_TOKEN` | For cloudflare | Required when `tunnel_provider` = `cloudflare` |
 
-#### Option 1: Service Account Authentication (Recommended)
+> [!NOTE]
+> **Windows only supports ngrok tunnels**. Cloudflare tunnel support is available for macOS and Ubuntu only.
+
+### 💾 Google Drive Persistence (Windows Only)
+
+**Required only if `enable_google_drive_persistence` = `true` (default)**
+
+Choose **ONE** authentication method:
+
+#### ✅ Option 1: Service Account (Recommended)
 
 | Secret | Description |
 | :--- | :--- |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | **Recommended**. Complete JSON content of your Google Service Account key file. Provides full Google Drive functionality including upload/download. See [Google Drive Setup Guide](#google-drive-setup) for detailed instructions. |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | **Full functionality**. Complete JSON from Google Service Account key file. Enables upload/download, automatic folder creation. [Setup Guide](#google-drive-setup) |
 
-#### Option 2: API Key Authentication (Limited)
+#### ⚠️ Option 2: API Key (Limited)
 
 | Secret | Description |
 | :--- | :--- |
-| `GOOGLE_DRIVE_API_KEY` | **Limited functionality**. Your Google Drive API key. Can only search files, cannot upload/download. Backups will be stored locally only. | `AIzaSyBcDeFgHiJkLmNoPqRsTuVwXyZ123456789` |
+| `GOOGLE_DRIVE_API_KEY` | **Limited functionality**. Can only search files, no upload/download. Local backups only. | `AIzaSyBcDeFgHiJkLmNoPqRsTuVwXyZ123456789` |
+
+### 🎯 Quick Setup Checklist
+
+**For Windows (Recommended):**
+- ✅ `USER_PASSWORD` 
+- ✅ `NGROK_AUTH_TOKEN`
+- ✅ `GOOGLE_SERVICE_ACCOUNT_JSON` (for persistence)
+
+**For macOS/Ubuntu:**
+- ✅ `USER_PASSWORD`
+- ✅ `NGROK_AUTH_TOKEN` OR `CF_TUNNEL_TOKEN`
 
 > [!IMPORTANT]
-> **Service Account authentication is strongly recommended** for full Google Drive integration. API key authentication has significant limitations and cannot upload/download files to Google Drive.
+> **Google Drive persistence is Windows-only**. macOS and Ubuntu sessions are temporary and data will be lost after 6 hours.
 
 ## Optional Pre-installed Software and Configurations
 
@@ -197,6 +310,43 @@ For persistent storage on Windows Server 2025, you need to set up Google Drive A
 - ✅ **No manual sharing required** - Works with dedicated backup folders
 - ✅ **Better error handling** - Comprehensive logging and fallbacks
 
+## 🔧 Troubleshooting
+
+### Common Issues
+
+| Issue | Solution |
+| :--- | :--- |
+| **"Secret not found" error** | Check secret names are exact: `USER_PASSWORD`, `NGROK_AUTH_TOKEN`, etc. |
+| **Tunnel connection fails** | Verify ngrok token is valid and has sufficient quota |
+| **Google Drive auth fails** | Ensure `GOOGLE_SERVICE_ACCOUNT_JSON` contains complete JSON |
+| **Workflow times out** | Reduce `timeout` value or check if VM is overloaded |
+| **Can't connect to RDP/VNC** | Wait 2-3 minutes after "Connection Details" appear in logs |
+
+### Getting Help
+
+1. **Check workflow logs** for detailed error messages
+2. **Verify secrets** are properly configured  
+3. **Test with minimal configuration** first
+4. **Review [Google Drive Setup Guide](GOOGLE_DRIVE_SETUP.md)** for persistence issues
+
 ---
 
-**Do not use these VMs for mining cryptocurrency, gaming, or any other unethical tasks. Your GitHub account may be flagged or permanently suspended.**
+## ⚠️ Important Disclaimers
+
+### Usage Policy
+- ✅ **Allowed**: Development, testing, learning, productivity work
+- ❌ **Prohibited**: Cryptocurrency mining, gaming, illegal activities, resource abuse
+- ⚠️ **Risk**: Account suspension for policy violations
+
+### Limitations
+- **Runtime**: 6 hours maximum per session
+- **Resources**: Shared GitHub Actions runners (limited CPU/RAM)
+- **Network**: Standard GitHub Actions network policies apply
+- **Storage**: Google Drive quota limits (Windows persistence)
+
+### Data Responsibility
+- **Windows**: Your data is backed up to YOUR Google Drive account
+- **macOS/Ubuntu**: All data is permanently lost after session ends
+- **Security**: You are responsible for securing your own secrets and data
+
+**Use responsibly and in compliance with GitHub's Terms of Service.**

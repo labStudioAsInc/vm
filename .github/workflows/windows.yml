@@ -55,6 +55,11 @@ on:
         required: false
         type: string
         default: 'chrome'
+      enable_google_drive_persistence:
+        description: 'Enable Google Drive Persistence'
+        required: false
+        type: boolean
+        default: true
     secrets:
       NGROK_AUTH_TOKEN:
         required: true
@@ -74,6 +79,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Download previous backup artifact
+        if: inputs.enable_google_drive_persistence == true
+        uses: actions/download-artifact@v4
+        with:
+          name: rdp-session-backup-${{ inputs.username }}-latest
+          path: ${{ env.TEMP }}
+        continue-on-error: true
+
       - name: Run pre-install script
         env:
           USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
@@ -91,6 +104,7 @@ jobs:
         shell: pwsh
 
       - name: Test Google Drive authentication
+        if: inputs.enable_google_drive_persistence == true
         env:
           GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -104,6 +118,7 @@ jobs:
         shell: pwsh
 
       - name: Restore user data from Google Drive
+        if: inputs.enable_google_drive_persistence == true
         env:
           GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -117,6 +132,7 @@ jobs:
         shell: pwsh
 
       - name: Create Google Drive sync shortcuts
+        if: inputs.enable_google_drive_persistence == true
         env:
           GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -258,27 +274,80 @@ jobs:
           echo "The workflow will remain running for ${{ inputs.timeout }} minutes."
           echo "Press Ctrl+C in the workflow logs to terminate the session early."
           
-          # Create a background job to backup data every 30 minutes
-          pwsh -Command "
-          \$job = Start-Job -ScriptBlock {
-            while (\$true) {
-              Start-Sleep -Seconds 1800  # 30 minutes
-              try {
-                Write-Host 'Creating periodic backup...'
-                & './scripts/google-drive-sync.ps1' -Action 'backup' -Username '${{ inputs.username }}'
-                Write-Host 'Periodic backup completed'
-              } catch {
-                Write-Warning 'Periodic backup failed: \$_'
-              }
-            }
-          }
-          Write-Host 'Started periodic backup job with ID:' \$job.Id
-          "
+          TIMEOUT_MINUTES=${{ inputs.timeout }}
+          TIMEOUT_SECONDS=$((TIMEOUT_MINUTES * 60))
+          PRE_TIMEOUT_BACKUP_SECONDS=$((TIMEOUT_SECONDS - 300))  # 5 minutes before timeout
           
-          sleep ${{ inputs.timeout }}m
+          # Create a background job to backup data every 30 minutes (if Google Drive persistence is enabled)
+          if [ '${{ inputs.enable_google_drive_persistence }}' = 'true' ]; then
+            pwsh -Command "
+            \$timeoutMinutes = $TIMEOUT_MINUTES
+            \$preTimeoutSeconds = $PRE_TIMEOUT_BACKUP_SECONDS
+            
+            # Periodic backup job (every 30 minutes)
+            \$periodicJob = Start-Job -ScriptBlock {
+              param(\$username)
+              while (\$true) {
+                Start-Sleep -Seconds 1800  # 30 minutes
+                try {
+                  Write-Host '⏰ Creating periodic backup...'
+                  & './scripts/google-drive-sync.ps1' -Action 'backup' -Username \$username
+                  Write-Host '✅ Periodic backup completed'
+                } catch {
+                  Write-Warning '❌ Periodic backup failed: \$_'
+                }
+              }
+            } -ArgumentList '${{ inputs.username }}'
+            
+            # Pre-timeout backup job (5 minutes before session ends)
+            \$preTimeoutJob = Start-Job -ScriptBlock {
+              param(\$username, \$preTimeoutSeconds)
+              Start-Sleep -Seconds \$preTimeoutSeconds
+              try {
+                Write-Host '⚠️ SESSION ENDING SOON! Running enhanced pre-timeout backup...'
+                & './scripts/pre-timeout-backup.ps1' -Username \$username -MinutesBeforeTimeout 5
+              } catch {
+                Write-Warning '❌ Pre-timeout backup script failed: \$_'
+                # Fallback to direct backup
+                try {
+                  Write-Host '🔄 Attempting fallback backup...'
+                  & './scripts/google-drive-sync.ps1' -Action 'backup' -Username \$username
+                  Write-Host '✅ Fallback backup completed'
+                } catch {
+                  Write-Warning '❌ Fallback backup also failed: \$_'
+                }
+              }
+            } -ArgumentList '${{ inputs.username }}', \$preTimeoutSeconds
+            
+            # Timeout handler job (runs throughout the session)
+            \$timeoutHandlerJob = Start-Job -ScriptBlock {
+              param(\$username)
+              & './scripts/timeout-handler.ps1' -Username \$username
+            } -ArgumentList '${{ inputs.username }}'
+            
+            Write-Host '🔄 Started periodic backup job with ID:' \$periodicJob.Id
+            Write-Host '⏰ Started pre-timeout backup job with ID:' \$preTimeoutJob.Id
+            Write-Host '🛡️ Started timeout handler job with ID:' \$timeoutHandlerJob.Id
+            Write-Host '📋 Backup schedule:'
+            Write-Host '   • Every 30 minutes during session'
+            Write-Host '   • 5 minutes before timeout (' (Get-Date).AddSeconds(\$preTimeoutSeconds).ToString('HH:mm:ss') ')'
+            Write-Host '   • At session end (final backup)'
+            Write-Host '   • Emergency backup on unexpected termination'
+            "
+          else
+            echo "Google Drive persistence is disabled. Skipping periodic backups."
+          fi
+          
+          echo ""
+          echo "🕐 Session started at: $(date)"
+          echo "⏰ Session will end at: $(date -d "+${TIMEOUT_MINUTES} minutes")"
+          echo "⚠️  Pre-timeout backup at: $(date -d "+$((TIMEOUT_MINUTES - 5)) minutes")"
+          echo ""
+          
+          sleep ${TIMEOUT_MINUTES}m
 
       - name: Final backup before shutdown
-        if: always()
+        if: always() && inputs.enable_google_drive_persistence == true
         env:
           GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -292,16 +361,30 @@ jobs:
           }
         shell: pwsh
 
-      - name: Upload backup as artifact
-        if: always()
+      - name: Upload backup as artifact (with run number)
+        if: always() && inputs.enable_google_drive_persistence == true
         uses: actions/upload-artifact@v4
         with:
           name: rdp-session-backup-${{ inputs.username }}-${{ github.run_number }}
           path: |
             C:\RDPBackups\rdp-session-${{ inputs.username }}.zip
+            ${{ env.TEMP }}\github-artifact-rdp-session-${{ inputs.username }}.zip
             ${{ env.TEMP }}\rdp-session-${{ inputs.username }}.zip
           retention-days: 30
           if-no-files-found: warn
+
+      - name: Upload backup as latest artifact (for next session)
+        if: always() && inputs.enable_google_drive_persistence == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-session-backup-${{ inputs.username }}-latest
+          path: |
+            C:\RDPBackups\rdp-session-${{ inputs.username }}.zip
+            ${{ env.TEMP }}\github-artifact-rdp-session-${{ inputs.username }}.zip
+            ${{ env.TEMP }}\rdp-session-${{ inputs.username }}.zip
+          retention-days: 7
+          if-no-files-found: warn
+          overwrite: true
 
       - name: Clean up cloudflared process
         if: always() && inputs.tunnel_provider == 'cloudflare'
