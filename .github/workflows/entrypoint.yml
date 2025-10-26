@@ -75,7 +75,7 @@ jobs:
       install_android_studio: ${{ contains(github.event.inputs.install_apps, 'android_studio') }}
       install_vscode: ${{ contains(github.event.inputs.install_apps, 'vscode') }}
       set_default_browser: ${{ github.event.inputs.set_default_browser }}
-      enable_google_drive_persistence: ${{ github.event.inputs.enable_google_drive_persistence }}
+      enable_google_drive_persistence: "${{ github.event.inputs.enable_google_drive_persistence }}"
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
       USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
