@@ -68,9 +68,9 @@ jobs:
       tunnel_provider: ${{ github.event.inputs.tunnel_provider }}
       region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
-      install_virtual_sound_card: ${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}
+      install_virtual_sound_card: "${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}"
       set_default_browser: ${{ github.event.inputs.set_default_browser }}
-      enable_google_drive_persistence: ${{ github.event.inputs.enable_google_drive_persistence }}
+      enable_google_drive_persistence: "${{ github.event.inputs.enable_google_drive_persistence }}"
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
       USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
@@ -85,7 +85,7 @@ jobs:
       tunnel_provider: ${{ github.event.inputs.tunnel_provider }}
       region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
-      install_virtual_sound_card: ${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}
+      install_virtual_sound_card: "${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}"
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
       CF_TUNNEL_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
@@ -99,7 +99,7 @@ jobs:
       tunnel_provider: ${{ github.event.inputs.tunnel_provider }}
       region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
-      install_virtual_sound_card: ${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}
+      install_virtual_sound_card: "${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}"
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
       CF_TUNNEL_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
