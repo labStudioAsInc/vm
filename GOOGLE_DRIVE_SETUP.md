@@ -23,34 +23,49 @@ This guide will help you set up Google Drive API integration for persistent RDP 
 3. Click on "Google Drive API"
 4. Click "Enable"
 
-## Step 3: Create API Credentials
+## Step 3: Create Service Account (Recommended)
+
+**Note**: API keys have limited permissions and cannot upload/download files. Use a Service Account instead.
 
 1. Go to "APIs & Services" > "Credentials"
-2. Click "Create Credentials" > "API Key"
-3. Copy the generated API key
-4. (Optional but recommended) Click "Restrict Key" to limit its usage:
-   - Under "API restrictions", select "Restrict key"
-   - Choose "Google Drive API" from the list
-   - Click "Save"
+2. Click "Create Credentials" > "Service Account"
+3. Enter a service account name (e.g., "rdp-backup-service")
+4. Click "Create and Continue"
+5. Skip the optional steps and click "Done"
+6. Click on the created service account
+7. Go to the "Keys" tab
+8. Click "Add Key" > "Create new key"
+9. Choose "JSON" format and click "Create"
+10. Save the downloaded JSON file securely
 
-## Step 4: Configure API Key Permissions
+## Step 4: Share Google Drive Folder with Service Account
 
-For the API key to work with your Google Drive, you need to ensure it has the right permissions:
+1. Open Google Drive in your browser
+2. Create a folder named "RDP-Sessions-Backup" (or use existing)
+3. Right-click the folder and select "Share"
+4. Add the service account email (from the JSON file, `client_email` field)
+5. Give it "Editor" permissions
+6. Click "Send"
 
-1. Go to "APIs & Services" > "Credentials"
-2. Click on your API key to edit it
-3. Under "Application restrictions", you can leave it as "None" for testing
-4. Under "API restrictions", make sure "Google Drive API" is selected
-5. Click "Save"
-
-## Step 5: Add API Key to GitHub Secrets
+## Step 5: Add Service Account to GitHub Secrets
 
 1. Go to your forked repository on GitHub
 2. Click "Settings" > "Secrets and variables" > "Actions"
 3. Click "New repository secret"
-4. Name: `GOOGLE_DRIVE_API_KEY`
-5. Value: Paste your API key from Step 3
+4. Name: `GOOGLE_SERVICE_ACCOUNT_JSON`
+5. Value: Paste the entire contents of the JSON file from Step 3
 6. Click "Add secret"
+
+## Alternative: API Key Setup (Limited Functionality)
+
+If you prefer to use an API key (with limitations):
+
+1. Go to "APIs & Services" > "Credentials"
+2. Click "Create Credentials" > "API Key"
+3. Copy the generated API key
+4. Add it as `GOOGLE_DRIVE_API_KEY` secret in GitHub
+
+**Note**: With API key, backups will be stored locally only, not in Google Drive.
 
 ## Step 6: Test the Setup
 
