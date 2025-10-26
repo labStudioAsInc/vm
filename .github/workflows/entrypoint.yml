@@ -68,12 +68,12 @@ jobs:
       tunnel_provider: ${{ github.event.inputs.tunnel_provider }}
       region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
-      install_virtual_sound_card: ${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}
-      install_github_desktop: ${{ contains(github.event.inputs.install_apps, 'github_desktop') }}
-      install_browseros: ${{ contains(github.event.inputs.install_apps, 'browseros') }}
-      install_void_editor: ${{ contains(github.event.inputs.install_apps, 'void_editor') }}
-      install_android_studio: ${{ contains(github.event.inputs.install_apps, 'android_studio') }}
-      install_vscode: ${{ contains(github.event.inputs.install_apps, 'vscode') }}
+      install_virtual_sound_card: "${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}"
+      install_github_desktop: "${{ contains(github.event.inputs.install_apps, 'github_desktop') }}"
+      install_browseros: "${{ contains(github.event.inputs.install_apps, 'browseros') }}"
+      install_void_editor: "${{ contains(github.event.inputs.install_apps, 'void_editor') }}"
+      install_android_studio: "${{ contains(github.event.inputs.install_apps, 'android_studio') }}"
+      install_vscode: "${{ contains(github.event.inputs.install_apps, 'vscode') }}"
       set_default_browser: ${{ github.event.inputs.set_default_browser }}
       enable_google_drive_persistence: "${{ github.event.inputs.enable_google_drive_persistence }}"
     secrets:
@@ -90,9 +90,9 @@ jobs:
       tunnel_provider: ${{ github.event.inputs.tunnel_provider }}
       region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
-      install_virtual_sound_card: ${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}
-      install_github_desktop: ${{ contains(github.event.inputs.install_apps, 'github_desktop') }}
-      install_vscode: ${{ contains(github.event.inputs.install_apps, 'vscode') }}
+      install_virtual_sound_card: "${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}"
+      install_github_desktop: "${{ contains(github.event.inputs.install_apps, 'github_desktop') }}"
+      install_vscode: "${{ contains(github.event.inputs.install_apps, 'vscode') }}"
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
       CF_TUNNEL_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
@@ -106,8 +106,8 @@ jobs:
       tunnel_provider: ${{ github.event.inputs.tunnel_provider }}
       region: ${{ github.event.inputs.region }}
       timeout: ${{ github.event.inputs.timeout }}
-      install_virtual_sound_card: ${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}
-      install_vscode: ${{ contains(github.event.inputs.install_apps, 'vscode') }}
+      install_virtual_sound_card: "${{ contains(github.event.inputs.install_apps, 'virtual_sound_card') }}"
+      install_vscode: "${{ contains(github.event.inputs.install_apps, 'vscode') }}"
     secrets:
       NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
       CF_TUNNEL_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
