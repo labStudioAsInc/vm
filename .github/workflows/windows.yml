@@ -60,6 +60,10 @@ on:
         required: true
       USER_PASSWORD:
         required: true
+      GOOGLE_DRIVE_API_KEY:
+        required: false
+      GOOGLE_SERVICE_ACCOUNT_JSON:
+        required: false
 
 jobs:
   rdp-session:
@@ -74,6 +78,7 @@ jobs:
         env:
           USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
           NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+          GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
         run: |
           ./scripts/preinstall-windows.ps1 -Username "${{ inputs.username }}" `
             -InstallVirtualSoundCard ${{ inputs.install_virtual_sound_card }} `
@@ -83,6 +88,32 @@ jobs:
             -InstallAndroidStudio ${{ inputs.install_android_studio }} `
             -InstallVSCode ${{ inputs.install_vscode }} `
             -SetDefaultBrowser "${{ inputs.set_default_browser }}"
+        shell: pwsh
+
+      - name: Restore user data from Google Drive
+        env:
+          GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          Write-Host "Restoring user data from Google Drive..."
+          if (-not $env:GOOGLE_DRIVE_API_KEY -and -not $env:GOOGLE_SERVICE_ACCOUNT_JSON) {
+            Write-Warning "No Google Drive authentication configured. Skipping restore."
+          } else {
+            ./scripts/google-drive-sync.ps1 -Action "restore" -Username "${{ inputs.username }}"
+          }
+        shell: pwsh
+
+      - name: Create Google Drive sync shortcuts
+        env:
+          GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          Write-Host "Creating desktop shortcuts for Google Drive sync..."
+          if (-not $env:GOOGLE_DRIVE_API_KEY -and -not $env:GOOGLE_SERVICE_ACCOUNT_JSON) {
+            Write-Warning "No Google Drive authentication configured. Skipping shortcut creation."
+          } else {
+            ./scripts/create-sync-shortcuts.ps1 -Username "${{ inputs.username }}"
+          }
         shell: pwsh
 
       - name: Enable RDP
@@ -213,7 +244,51 @@ jobs:
           echo "Remote desktop session is now active!"
           echo "The workflow will remain running for ${{ inputs.timeout }} minutes."
           echo "Press Ctrl+C in the workflow logs to terminate the session early."
+          
+          # Create a background job to backup data every 30 minutes
+          pwsh -Command "
+          \$job = Start-Job -ScriptBlock {
+            while (\$true) {
+              Start-Sleep -Seconds 1800  # 30 minutes
+              try {
+                Write-Host 'Creating periodic backup...'
+                & './scripts/google-drive-sync.ps1' -Action 'backup' -Username '${{ inputs.username }}'
+                Write-Host 'Periodic backup completed'
+              } catch {
+                Write-Warning 'Periodic backup failed: \$_'
+              }
+            }
+          }
+          Write-Host 'Started periodic backup job with ID:' \$job.Id
+          "
+          
           sleep ${{ inputs.timeout }}m
+
+      - name: Final backup before shutdown
+        if: always()
+        env:
+          GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          Write-Host "Creating final backup before shutdown..."
+          try {
+            ./scripts/google-drive-sync.ps1 -Action "backup" -Username "${{ inputs.username }}"
+            Write-Host "Final backup completed successfully"
+          } catch {
+            Write-Warning "Final backup failed: $_"
+          }
+        shell: pwsh
+
+      - name: Upload backup as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-session-backup-${{ inputs.username }}-${{ github.run_number }}
+          path: |
+            C:\RDPBackups\rdp-session-${{ inputs.username }}.zip
+            ${{ env.TEMP }}\rdp-session-${{ inputs.username }}.zip
+          retention-days: 30
+          if-no-files-found: warn
 
       - name: Clean up cloudflared process
         if: always() && inputs.tunnel_provider == 'cloudflare'
