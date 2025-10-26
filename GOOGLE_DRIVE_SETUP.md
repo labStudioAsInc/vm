@@ -53,8 +53,23 @@ This guide will help you set up Google Drive API integration for persistent RDP 
 2. Click "Settings" > "Secrets and variables" > "Actions"
 3. Click "New repository secret"
 4. Name: `GOOGLE_SERVICE_ACCOUNT_JSON`
-5. Value: Paste the entire contents of the JSON file from Step 3
+5. Value: Paste the entire contents of the JSON file from Step 3 (the complete JSON, including all the curly braces)
 6. Click "Add secret"
+
+**Example of what the JSON should look like:**
+```json
+{
+  "type": "service_account",
+  "project_id": "your-project-id",
+  "private_key_id": "key-id",
+  "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+  "client_email": "your-service@your-project.iam.gserviceaccount.com",
+  "client_id": "123456789",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  ...
+}
+```
 
 ## Alternative: API Key Setup (Limited Functionality)
 
@@ -69,9 +84,14 @@ If you prefer to use an API key (with limitations):
 
 ## Step 6: Test the Setup
 
-1. Run your Windows workflow
-2. Check the logs for successful backup/restore operations
-3. Look for desktop shortcuts in your RDP session:
+1. Run your Windows workflow from the **Actions** tab
+2. Look for the **"Test Google Drive authentication"** step in the workflow logs
+3. Check for successful authentication messages:
+   - ✓ GOOGLE_SERVICE_ACCOUNT_JSON is set
+   - ✓ JSON is valid
+   - ✓ Private key is present
+4. Monitor the **"Restore user data from Google Drive"** and **"Final backup before shutdown"** steps
+5. In your RDP session, look for desktop shortcuts:
    - "Backup to Google Drive.bat"
    - "Restore from Google Drive.bat"
    - "Check Backup Status.bat"
@@ -101,21 +121,34 @@ If you prefer to use an API key (with limitations):
 
 ### Common Issues
 
-1. **"API Key not found" error**:
-   - Ensure `GOOGLE_DRIVE_API_KEY` is added to GitHub repository secrets
-   - Check that the secret name is exactly `GOOGLE_DRIVE_API_KEY`
+1. **"GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set" error**:
+   - Ensure `GOOGLE_SERVICE_ACCOUNT_JSON` is added to GitHub repository secrets
+   - Check that the secret name is exactly `GOOGLE_SERVICE_ACCOUNT_JSON`
+   - Verify you pasted the complete JSON content (including curly braces)
 
-2. **"Failed to get/create backup folder" error**:
+2. **"JSON is invalid" error**:
+   - Check that you copied the entire JSON file content
+   - Ensure no extra characters or truncation occurred
+   - Verify the JSON format is valid
+
+3. **"Failed to get access token" error**:
    - Verify Google Drive API is enabled in your Google Cloud project
-   - Check that your API key has Google Drive API permissions
+   - Check that your Service Account has the correct permissions
+   - Ensure the private key in the JSON is not corrupted
 
-3. **"No backup found" warning**:
+4. **"Failed to get/create backup folder" error**:
+   - Verify the Service Account has access to Google Drive
+   - Check your Google Drive storage quota
+   - Ensure the Service Account email has been shared with the backup folder
+
+5. **"No backup found" warning**:
    - This is normal for the first run
    - Subsequent runs should find and restore backups
 
-4. **Upload/Download failures**:
+6. **Upload/Download failures**:
    - Check your Google Drive storage quota
    - Verify your internet connection in the RDP session
+   - Ensure the Service Account has proper permissions
 
 ### Getting Help
 

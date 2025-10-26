@@ -7,7 +7,7 @@
 
 **This repository contains scripts and workflows for the initial setup of Github Runner VMs and configuration of servers for various operating systems. These scripts are designed to automate the pre-installation process, ensuring a consistent and reliable environment for our applications.**
 
-[Overview](#overview) • [How it works](#how-it-works) • [Installation](#installation) • [How to use](#how-to-use) • [Secrets Configuration](#secrets-configuration)
+[Overview](#overview) • [How it works](#how-it-works) • [Installation](#installation) • [How to use](#how-to-use) • [Workflow Inputs](#workflow-inputs) • [Secrets Configuration](#secrets-configuration) • [Google Drive Setup](#google-drive-setup)
 
 </div> </div>
 
@@ -110,14 +110,39 @@ When running a workflow, you can customize the VM setup using the following inpu
 
 ## <a name="secrets-configuration"></a>Secrets Configuration
 
-The following secrets must be added to your repository for the scripts to function correctly. We are using "USER_PASSWORD" as a GitHub environment secret.
+The following secrets must be added to your repository for the scripts to function correctly. Go to your repository's **Settings** > **Secrets and variables** > **Actions** to add these secrets.
+
+### Required Secrets
 
 | Secret | Description | Example |
 | :--- | :--- | :--- |
-| `NGROK_AUTH_TOKEN` | Your authentication token from the [ngrok dashboard](https://dashboard.ngrok.com/get-started/your-authtoken). Required if `tunnel_provider` is `ngrok`. | `2aBcDeFgHiJkLmNoPqRsTuVwXyZ_123456789` |
+| `USER_PASSWORD` | **Required**. The password for the new user account that will be created on the VM. Use a strong password. | `MySecurePassword123!` |
+
+### Tunnel Provider Secrets (Choose One)
+
+| Secret | Description | Example |
+| :--- | :--- | :--- |
+| `NGROK_AUTH_TOKEN` | Your authentication token from the [ngrok dashboard](https://dashboard.ngrok.com/get-started/your-authtoken). Required if `tunnel_provider` is `ngrok` (default). | `2aBcDeFgHiJkLmNoPqRsTuVwXyZ_123456789` |
 | `CF_TUNNEL_TOKEN` | Your Cloudflare Tunnel token. Required if `tunnel_provider` is `cloudflare`. | `your-long-cloudflare-token` |
-| `USER_PASSWORD` | **Required**. The password for the new user account that will be created on the VM. | `your-strong-password` |
-| `GOOGLE_DRIVE_API_KEY` | **Required for Windows Server 2025**. Your Google Drive API key for persistent storage. See [Google Drive Setup Guide](GOOGLE_DRIVE_SETUP.md) for detailed instructions. | `AIzaSyBcDeFgHiJkLmNoPqRsTuVwXyZ123456789` |
+
+### Google Drive Integration Secrets (Windows Server 2025 Only)
+
+**Choose ONE of the following authentication methods:**
+
+#### Option 1: Service Account Authentication (Recommended)
+
+| Secret | Description |
+| :--- | :--- |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | **Recommended**. Complete JSON content of your Google Service Account key file. Provides full Google Drive functionality including upload/download. See [Google Drive Setup Guide](#google-drive-setup) for detailed instructions. |
+
+#### Option 2: API Key Authentication (Limited)
+
+| Secret | Description |
+| :--- | :--- |
+| `GOOGLE_DRIVE_API_KEY` | **Limited functionality**. Your Google Drive API key. Can only search files, cannot upload/download. Backups will be stored locally only. | `AIzaSyBcDeFgHiJkLmNoPqRsTuVwXyZ123456789` |
+
+> [!IMPORTANT]
+> **Service Account authentication is strongly recommended** for full Google Drive integration. API key authentication has significant limitations and cannot upload/download files to Google Drive.
 
 ## Optional Pre-installed Software and Configurations
 
@@ -144,6 +169,34 @@ In addition to the optional software, the following base configurations are alwa
 | **Max Runtime** | Each job can run for a maximum of 6 hours. |
 | **Persistency** | - **Windows Server 2025**: Full data persistence via Google Drive integration <br> - **macOS/Ubuntu**: All your work will be gone when the job is complete (no persistence) |
 | **Usage Limits (Free Tier)** | - **Public Repositories**: Unlimited minutes/month. <br> - **Private Repositories**: 2000 minutes/month. <br> *(These limits may be higher on paid tiers)*. |
-| **Storage Requirements** | **Windows Server 2025**: Requires Google Drive API key and uses your Google Drive storage quota |
+| **Storage Requirements** | **Windows Server 2025**: Requires Google Drive authentication (Service Account recommended) and uses your Google Drive storage quota |
+
+## <a name="google-drive-setup"></a>Google Drive Setup
+
+For persistent storage on Windows Server 2025, you need to set up Google Drive API access. We **strongly recommend using Service Account authentication** for full functionality.
+
+### Quick Setup Links
+
+- 📋 **[Complete Setup Guide](GOOGLE_DRIVE_SETUP.md)** - Detailed step-by-step instructions
+- 🔗 **[Google Cloud Console](https://console.cloud.google.com/)** - Create your project and Service Account
+- 🔗 **[Google Drive API Library](https://console.cloud.google.com/apis/library/drive.googleapis.com)** - Enable the API
+- 🔗 **[ngrok Dashboard](https://dashboard.ngrok.com/get-started/your-authtoken)** - Get your tunnel token
+
+### Authentication Methods Comparison
+
+| Method | Upload/Download | Folder Management | Recommended |
+| :--- | :---: | :---: | :---: |
+| **Service Account** | ✅ Full support | ✅ Full support | ✅ **Yes** |
+| **API Key** | ❌ Local only | ❌ Limited | ❌ No |
+
+### Service Account Benefits
+
+- ✅ **Full Google Drive integration** - Upload, download, and manage files
+- ✅ **Automatic folder creation** - Creates backup folders automatically  
+- ✅ **Secure authentication** - Uses OAuth2 with private keys
+- ✅ **No manual sharing required** - Works with dedicated backup folders
+- ✅ **Better error handling** - Comprehensive logging and fallbacks
+
+---
 
 **Do not use these VMs for mining cryptocurrency, gaming, or any other unethical tasks. Your GitHub account may be flagged or permanently suspended.**
