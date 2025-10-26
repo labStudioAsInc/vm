@@ -11,74 +11,139 @@ param (
     [string]$BackupPath = "C:\RDPBackup"
 )
 
-if (-not $env:GOOGLE_DRIVE_API_KEY) {
-    Write-Error "Error: GOOGLE_DRIVE_API_KEY environment variable is not set."
+# Check for authentication method
+if (-not $env:GOOGLE_DRIVE_API_KEY -and -not $env:GOOGLE_SERVICE_ACCOUNT_JSON) {
+    Write-Error "Error: Neither GOOGLE_DRIVE_API_KEY nor GOOGLE_SERVICE_ACCOUNT_JSON environment variable is set."
     exit 1
 }
 
 $ApiKey = $env:GOOGLE_DRIVE_API_KEY
+$UseServiceAccount = $env:GOOGLE_SERVICE_ACCOUNT_JSON -ne $null
 $BackupFileName = "rdp-session-$Username.zip"
 $UserProfile = "C:\Users\$Username"
 
 # Function to get access token using service account
 function Get-AccessToken {
-    if (-not $env:GOOGLE_SERVICE_ACCOUNT_JSON) {
-        Write-Error "GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set. Please use service account authentication instead of API key."
+    if (-not $UseServiceAccount) {
         return $null
     }
     
     try {
         $serviceAccount = $env:GOOGLE_SERVICE_ACCOUNT_JSON | ConvertFrom-Json
         
-        # Create JWT for service account authentication
+        # Create JWT assertion for service account
+        $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        
+        # Create the JWT header
         $header = @{
             "alg" = "RS256"
             "typ" = "JWT"
-        } | ConvertTo-Json -Compress
+        }
         
-        $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        # Create the JWT payload
         $payload = @{
             "iss" = $serviceAccount.client_email
             "scope" = "https://www.googleapis.com/auth/drive.file"
             "aud" = "https://oauth2.googleapis.com/token"
             "exp" = $now + 3600
             "iat" = $now
-        } | ConvertTo-Json -Compress
+        }
         
-        # For simplicity, we'll use a different approach with API key but with proper error handling
-        # In production, you should implement proper JWT signing
-        Write-Warning "Service account authentication not fully implemented. Falling back to API key with limited functionality."
-        return $null
+        # Convert to Base64URL encoding
+        $headerJson = $header | ConvertTo-Json -Compress
+        $payloadJson = $payload | ConvertTo-Json -Compress
+        
+        $headerBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($headerJson)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+        $payloadBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($payloadJson)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+        
+        # Create the signature (simplified approach using .NET crypto)
+        $privateKeyPem = $serviceAccount.private_key
+        
+        # Remove PEM headers and decode
+        $privateKeyPem = $privateKeyPem -replace "-----BEGIN PRIVATE KEY-----", ""
+        $privateKeyPem = $privateKeyPem -replace "-----END PRIVATE KEY-----", ""
+        $privateKeyPem = $privateKeyPem -replace "\s", ""
+        
+        $privateKeyBytes = [Convert]::FromBase64String($privateKeyPem)
+        
+        # Create RSA provider and sign
+        $rsa = [System.Security.Cryptography.RSA]::Create()
+        $rsa.ImportPkcs8PrivateKey($privateKeyBytes, [ref]$null)
+        
+        $dataToSign = "$headerBase64.$payloadBase64"
+        $dataBytes = [System.Text.Encoding]::UTF8.GetBytes($dataToSign)
+        $signature = $rsa.SignData($dataBytes, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
+        $signatureBase64 = [Convert]::ToBase64String($signature).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+        
+        $jwt = "$headerBase64.$payloadBase64.$signatureBase64"
+        
+        # Exchange JWT for access token
+        $tokenRequest = @{
+            grant_type = "urn:ietf:params:oauth:grant-type:jwt-bearer"
+            assertion = $jwt
+        }
+        
+        $tokenResponse = Invoke-RestMethod -Uri "https://oauth2.googleapis.com/token" -Method Post -Body $tokenRequest -ContentType "application/x-www-form-urlencoded"
+        
+        Write-Host "Successfully obtained access token"
+        return $tokenResponse.access_token
+        
     } catch {
         Write-Error "Failed to get access token: $_"
+        Write-Host "Error details: $($_.Exception.Message)"
         return $null
     }
 }
 
 # Function to get Google Drive folder ID for RDP backups
 function Get-RDPBackupFolderId {
+    param($AccessToken)
+    
     $folderName = "RDP-Sessions-Backup"
     
-    # Try to use a simple approach - create a known folder ID or use root
-    # Since API keys have limitations, we'll work around them
     try {
-        # First, try to search for existing folder
-        $searchUrl = "https://www.googleapis.com/drive/v3/files?q=name='$folderName' and mimeType='application/vnd.google-apps.folder'&key=$ApiKey"
-        $response = Invoke-RestMethod -Uri $searchUrl -Method Get -ErrorAction SilentlyContinue
-        
-        if ($response.files.Count -gt 0) {
-            Write-Host "Found existing backup folder"
-            return $response.files[0].id
+        if ($UseServiceAccount -and $AccessToken) {
+            # Use service account with access token
+            $headers = @{
+                "Authorization" = "Bearer $AccessToken"
+                "Content-Type" = "application/json"
+            }
+            $searchUrl = "https://www.googleapis.com/drive/v3/files?q=name='$folderName' and mimeType='application/vnd.google-apps.folder'"
+            $response = Invoke-RestMethod -Uri $searchUrl -Method Get -Headers $headers
+            
+            if ($response.files.Count -gt 0) {
+                Write-Host "Found existing backup folder: $($response.files[0].name)"
+                return $response.files[0].id
+            }
+            
+            # Create folder if it doesn't exist
+            Write-Host "Creating backup folder: $folderName"
+            $createFolderBody = @{
+                name = $folderName
+                mimeType = "application/vnd.google-apps.folder"
+            } | ConvertTo-Json
+            
+            $createResponse = Invoke-RestMethod -Uri "https://www.googleapis.com/drive/v3/files" -Method Post -Headers $headers -Body $createFolderBody
+            Write-Host "Created backup folder with ID: $($createResponse.id)"
+            return $createResponse.id
+            
+        } elseif ($ApiKey) {
+            # Use API key (limited functionality)
+            $searchUrl = "https://www.googleapis.com/drive/v3/files?q=name='$folderName' and mimeType='application/vnd.google-apps.folder'&key=$ApiKey"
+            $response = Invoke-RestMethod -Uri $searchUrl -Method Get -ErrorAction SilentlyContinue
+            
+            if ($response.files.Count -gt 0) {
+                Write-Host "Found existing backup folder"
+                return $response.files[0].id
+            }
+            
+            Write-Warning "Cannot create folder with API key. Using root folder. Please manually create '$folderName' folder in your Google Drive."
+            return "root"
         }
         
-        # If folder doesn't exist, we can't create it with API key
-        # Let's use the root folder as fallback
-        Write-Warning "Cannot create folder with API key. Using root folder. Please manually create 'RDP-Sessions-Backup' folder in your Google Drive."
-        return "root"
-        
     } catch {
-        Write-Warning "API key has insufficient permissions. Using root folder as fallback."
-        Write-Host "Error details: $_"
+        Write-Warning "Failed to get/create backup folder: $_"
+        Write-Host "Error details: $($_.Exception.Message)"
         return "root"
     }
 }
@@ -130,91 +195,194 @@ function Backup-UserData {
     Compress-Archive -Path "$BackupPath\*" -DestinationPath $zipPath -Force
     
     # Upload to Google Drive
-    $folderId = Get-RDPBackupFolderId
+    $accessToken = $null
+    if ($UseServiceAccount) {
+        $accessToken = Get-AccessToken
+        if (-not $accessToken) {
+            Write-Warning "Failed to get access token. Falling back to local backup."
+        }
+    }
+    
+    $folderId = Get-RDPBackupFolderId -AccessToken $accessToken
     if (-not $folderId) {
         Write-Error "Failed to get backup folder ID"
         return $false
     }
     
-    # Check if backup already exists and delete it
-    $searchUrl = "https://www.googleapis.com/drive/v3/files?q=name='$BackupFileName' and parents in '$folderId'&key=$ApiKey"
-    try {
-        $existingFiles = Invoke-RestMethod -Uri $searchUrl -Method Get
-        foreach ($file in $existingFiles.files) {
-            $deleteUrl = "https://www.googleapis.com/drive/v3/files/$($file.id)?key=$ApiKey"
-            Invoke-RestMethod -Uri $deleteUrl -Method Delete
-            Write-Host "Deleted existing backup: $($file.name)"
-        }
-    } catch {
-        Write-Warning "Failed to check/delete existing backups: $_"
+    # Always save locally as backup
+    $localBackupDir = "C:\RDPBackups"
+    if (-not (Test-Path $localBackupDir)) {
+        New-Item -ItemType Directory -Path $localBackupDir -Force | Out-Null
     }
     
-    # Upload new backup
-    Write-Host "Uploading backup to Google Drive..."
-    try {
-        # API keys cannot upload files to Google Drive
-        # We need to inform the user about this limitation
-        Write-Error "Cannot upload files with API key authentication. Google Drive API requires OAuth2 or Service Account for file operations."
-        Write-Host "Please set up Service Account authentication instead of API key."
-        Write-Host "For now, backup will be saved locally at: $zipPath"
-        
-        # Keep the backup locally as fallback
-        $localBackupDir = "C:\RDPBackups"
-        if (-not (Test-Path $localBackupDir)) {
-            New-Item -ItemType Directory -Path $localBackupDir -Force | Out-Null
+    $localBackupPath = "$localBackupDir\$BackupFileName"
+    Copy-Item -Path $zipPath -Destination $localBackupPath -Force
+    Write-Host "Backup saved locally: $localBackupPath"
+    
+    # Try to upload to Google Drive
+    if ($UseServiceAccount -and $accessToken) {
+        try {
+            Write-Host "Uploading backup to Google Drive..."
+            
+            # Check if backup already exists and delete it
+            $headers = @{
+                "Authorization" = "Bearer $accessToken"
+            }
+            
+            $searchUrl = "https://www.googleapis.com/drive/v3/files?q=name='$BackupFileName' and parents in '$folderId'"
+            $existingFiles = Invoke-RestMethod -Uri $searchUrl -Method Get -Headers $headers
+            
+            foreach ($file in $existingFiles.files) {
+                $deleteUrl = "https://www.googleapis.com/drive/v3/files/$($file.id)"
+                Invoke-RestMethod -Uri $deleteUrl -Method Delete -Headers $headers
+                Write-Host "Deleted existing backup: $($file.name)"
+            }
+            
+            # Upload new backup using multipart upload
+            $boundary = [System.Guid]::NewGuid().ToString()
+            $metadata = @{
+                name = $BackupFileName
+                parents = @($folderId)
+            } | ConvertTo-Json
+            
+            $fileBytes = [System.IO.File]::ReadAllBytes($zipPath)
+            
+            $bodyLines = @(
+                "--$boundary",
+                "Content-Type: application/json; charset=UTF-8",
+                "",
+                $metadata,
+                "",
+                "--$boundary",
+                "Content-Type: application/zip",
+                "",
+                [System.Text.Encoding]::Latin1.GetString($fileBytes),
+                "--$boundary--"
+            )
+            
+            $body = $bodyLines -join "`r`n"
+            $bodyBytes = [System.Text.Encoding]::Latin1.GetBytes($body)
+            
+            $uploadHeaders = @{
+                "Authorization" = "Bearer $accessToken"
+                "Content-Type" = "multipart/related; boundary=$boundary"
+                "Content-Length" = $bodyBytes.Length
+            }
+            
+            $uploadUrl = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
+            $response = Invoke-RestMethod -Uri $uploadUrl -Method Post -Headers $uploadHeaders -Body $bodyBytes
+            
+            Write-Host "Successfully uploaded backup to Google Drive: $($response.name) (ID: $($response.id))"
+            Remove-Item -Path $BackupPath -Recurse -Force
+            return $true
+            
+        } catch {
+            Write-Warning "Failed to upload to Google Drive: $_"
+            Write-Host "Error details: $($_.Exception.Message)"
+            Write-Host "Backup is still available locally at: $localBackupPath"
         }
-        
-        $localBackupPath = "$localBackupDir\$BackupFileName"
-        Copy-Item -Path $zipPath -Destination $localBackupPath -Force
-        Write-Host "Backup saved locally: $localBackupPath"
-        Write-Host "This backup will be uploaded as a GitHub Actions artifact"
-        
-        # Keep temp file for artifact upload, don't remove it yet
-        Write-Host "Backup also available at: $zipPath"
-        Remove-Item -Path $BackupPath -Recurse -Force
-        
-        return $false  # Return false since Google Drive upload failed
-    } catch {
-        Write-Error "Failed to upload backup: $_"
-        return $false
+    } elseif ($ApiKey) {
+        Write-Warning "API key authentication has limited functionality. Cannot upload files to Google Drive."
+        Write-Host "Please use Service Account authentication for full Google Drive integration."
     }
+    
+    # Keep temp file for artifact upload
+    Write-Host "Backup also available at: $zipPath"
+    Remove-Item -Path $BackupPath -Recurse -Force
+    
+    return $true  # Return true since local backup succeeded
 }
 
 # Function to restore user data from Google Drive
 function Restore-UserData {
     Write-Host "Starting restore process for user: $Username"
     
-    $folderId = Get-RDPBackupFolderId
+    $accessToken = $null
+    if ($UseServiceAccount) {
+        $accessToken = Get-AccessToken
+        if (-not $accessToken) {
+            Write-Warning "Failed to get access token. Will try local backup only."
+        }
+    }
+    
+    $folderId = Get-RDPBackupFolderId -AccessToken $accessToken
     if (-not $folderId) {
         Write-Warning "No backup folder found. This might be the first run."
         return $true
     }
     
-    # Try to search for backup file, but handle API key limitations
-    try {
-        # Check for local backup first
+    $zipPath = "$env:TEMP\$BackupFileName"
+    $foundBackup = $false
+    
+    # Try to download from Google Drive first (if using service account)
+    if ($UseServiceAccount -and $accessToken) {
+        try {
+            Write-Host "Searching for backup in Google Drive..."
+            $headers = @{
+                "Authorization" = "Bearer $accessToken"
+            }
+            
+            $searchUrl = "https://www.googleapis.com/drive/v3/files?q=name='$BackupFileName' and parents in '$folderId'"
+            $response = Invoke-RestMethod -Uri $searchUrl -Method Get -Headers $headers
+            
+            if ($response.files.Count -gt 0) {
+                $fileId = $response.files[0].id
+                Write-Host "Found backup in Google Drive: $($response.files[0].name)"
+                
+                # Download the file
+                $downloadUrl = "https://www.googleapis.com/drive/v3/files/$fileId?alt=media"
+                Invoke-RestMethod -Uri $downloadUrl -Method Get -Headers $headers -OutFile $zipPath
+                Write-Host "Downloaded backup from Google Drive"
+                $foundBackup = $true
+            }
+        } catch {
+            Write-Warning "Failed to download from Google Drive: $_"
+            Write-Host "Error details: $($_.Exception.Message)"
+        }
+    }
+    
+    # Fallback to local backup if Google Drive failed or not available
+    if (-not $foundBackup) {
         $localBackupDir = "C:\RDPBackups"
         $localBackupPath = "$localBackupDir\$BackupFileName"
         
         if (Test-Path $localBackupPath) {
             Write-Host "Found local backup file: $localBackupPath"
-            $zipPath = "$env:TEMP\$BackupFileName"
             Copy-Item -Path $localBackupPath -Destination $zipPath -Force
             Write-Host "Using local backup for restore"
-        } else {
-            # Try Google Drive search (limited with API key)
-            $searchUrl = "https://www.googleapis.com/drive/v3/files?q=name='$BackupFileName'&key=$ApiKey"
-            $response = Invoke-RestMethod -Uri $searchUrl -Method Get -ErrorAction SilentlyContinue
-            
-            if ($response.files.Count -eq 0) {
-                Write-Warning "No backup found for user: $Username. This might be the first run."
+            $foundBackup = $true
+        } elseif ($ApiKey) {
+            # Try Google Drive search with API key (limited functionality)
+            try {
+                $searchUrl = "https://www.googleapis.com/drive/v3/files?q=name='$BackupFileName'&key=$ApiKey"
+                $response = Invoke-RestMethod -Uri $searchUrl -Method Get -ErrorAction SilentlyContinue
+                
+                if ($response.files.Count -eq 0) {
+                    Write-Warning "No backup found for user: $Username. This might be the first run."
+                    return $true
+                }
+                
+                Write-Warning "Found backup in Google Drive, but API key cannot download private files."
+                Write-Warning "Please use Service Account authentication for full Google Drive integration."
                 return $true
+            } catch {
+                Write-Warning "Failed to search Google Drive with API key: $_"
             }
-            
-            Write-Warning "Found backup in Google Drive, but API key cannot download private files."
-            Write-Warning "Please use Service Account authentication for full Google Drive integration."
-            return $true
         }
+    }
+    
+    if (-not $foundBackup) {
+        Write-Warning "No backup found for user: $Username. This might be the first run."
+        return $true
+    }
+    
+    # Verify the backup file exists and is valid
+    if (-not (Test-Path $zipPath)) {
+        Write-Warning "Backup file not found at: $zipPath"
+        return $true
+    }
+    
+    try {
         
         # Extract backup
         if (Test-Path $BackupPath) {

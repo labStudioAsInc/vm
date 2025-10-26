@@ -90,6 +90,19 @@ jobs:
             -SetDefaultBrowser "${{ inputs.set_default_browser }}"
         shell: pwsh
 
+      - name: Test Google Drive authentication
+        env:
+          GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          Write-Host "Testing Google Drive authentication..."
+          if (-not $env:GOOGLE_DRIVE_API_KEY -and -not $env:GOOGLE_SERVICE_ACCOUNT_JSON) {
+            Write-Warning "No Google Drive authentication configured. Skipping Google Drive integration."
+          } else {
+            ./scripts/test-google-auth.ps1
+          }
+        shell: pwsh
+
       - name: Restore user data from Google Drive
         env:
           GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
