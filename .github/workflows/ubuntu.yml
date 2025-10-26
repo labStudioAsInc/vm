@@ -24,11 +24,6 @@ on:
         required: false
         type: boolean
         default: false
-      install_vscode:
-        description: 'Install VS Code'
-        required: false
-        type: boolean
-        default: false
     secrets:
       NGROK_AUTH_TOKEN:
         required: true
@@ -52,8 +47,7 @@ jobs:
         run: |
           chmod +x ./scripts/preinstall-ubuntu.sh
           sudo USER_PASSWORD=$USER_PASSWORD ./scripts/preinstall-ubuntu.sh "${{ inputs.username }}" \
-            "${{ inputs.install_virtual_sound_card }}" \
-            "${{ inputs.install_vscode }}"
+            "${{ inputs.install_virtual_sound_card }}"
 
       - name: Install jq
         run: |

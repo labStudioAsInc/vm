@@ -25,31 +25,6 @@ on:
         required: false
         type: boolean
         default: false
-      install_github_desktop:
-        description: 'Install GitHub Desktop'
-        required: false
-        type: boolean
-        default: false
-      install_browseros:
-        description: 'Install BrowserOS'
-        required: false
-        type: boolean
-        default: false
-      install_void_editor:
-        description: 'Install Void Editor'
-        required: false
-        type: boolean
-        default: false
-      install_android_studio:
-        description: 'Install Android Studio'
-        required: false
-        type: boolean
-        default: false
-      install_vscode:
-        description: 'Install VS Code'
-        required: false
-        type: boolean
-        default: false
       set_default_browser:
         description: 'Set Default Browser to Chrome/BrowserOS'
         required: false
@@ -95,11 +70,6 @@ jobs:
         run: |
           ./scripts/preinstall-windows.ps1 -Username "${{ inputs.username }}" `
             -InstallVirtualSoundCard ${{ inputs.install_virtual_sound_card }} `
-            -InstallGitHubDesktop ${{ inputs.install_github_desktop }} `
-            -InstallBrowserOS ${{ inputs.install_browseros }} `
-            -InstallVoidEditor ${{ inputs.install_void_editor }} `
-            -InstallAndroidStudio ${{ inputs.install_android_studio }} `
-            -InstallVSCode ${{ inputs.install_vscode }} `
             -SetDefaultBrowser "${{ inputs.set_default_browser }}"
         shell: pwsh
 

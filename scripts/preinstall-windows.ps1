@@ -7,23 +7,11 @@ param (
     [Parameter(Mandatory=$true)]
     [string]$Username,
     [string]$InstallVirtualSoundCard = 'false',
-    [string]$InstallGitHubDesktop = 'false',
-    [string]$InstallBrowserOS = 'false',
-    [string]$InstallVoidEditor = 'false',
-    [string]$InstallAndroidStudio = 'false',
-    [string]$InstallVSCode = 'false',
-
     [string]$SetDefaultBrowser = 'none'
-
 )
 
 # Convert string parameters to booleans
 $InstallVirtualSoundCardBool = $InstallVirtualSoundCard.ToLower() -eq 'true'
-$InstallGitHubDesktopBool = $InstallGitHubDesktop.ToLower() -eq 'true'
-$InstallBrowserOSBool = $InstallBrowserOS.ToLower() -eq 'true'
-$InstallVoidEditorBool = $InstallVoidEditor.ToLower() -eq 'true'
-$InstallAndroidStudioBool = $InstallAndroidStudio.ToLower() -eq 'true'
-$InstallVSCodeBool = $InstallVSCode.ToLower() -eq 'true'
 
 if (-not $env:USER_PASSWORD) {
     Write-Error "Error: USER_PASSWORD environment variable is not set."
@@ -76,59 +64,6 @@ if ($InstallVirtualSoundCardBool) {
     }
 }
 
-if ($InstallGitHubDesktopBool) {
-    Write-Host "Installing GitHub Desktop..."
-    try {
-        choco install github-desktop -y --force
-        Write-Host "GitHub Desktop installed successfully."
-    } catch {
-        Write-Error "Failed to install GitHub Desktop: $_"
-    }
-}
-
-if ($InstallBrowserOSBool) {
-    Write-Host "Installing BrowserOS..."
-    try {
-        # Assuming a Chocolatey package exists. If not, this will need to be updated.
-        choco install browseros -y --force
-        Write-Host "BrowserOS installed successfully."
-    } catch {
-        Write-Error "Failed to install BrowserOS: $_"
-    }
-}
-
-if ($InstallVoidEditorBool) {
-    Write-Host "Installing Void Editor..."
-    try {
-        # Assuming a Chocolatey package exists.
-        choco install void-editor -y --force
-        Write-Host "Void Editor installed successfully."
-    } catch {
-        Write-Error "Failed to install Void Editor: $_"
-    }
-}
-
-if ($InstallAndroidStudioBool) {
-    Write-Host "Installing Android Studio..."
-    try {
-        choco install android-studio -y --force
-        Write-Host "Android Studio installed successfully."
-    } catch {
-        Write-Error "Failed to install Android Studio: $_"
-    }
-}
-
-if ($InstallVSCodeBool) {
-    Write-Host "Installing VS Code..."
-    try {
-        choco install vscode -y --force
-        Write-Host "VS Code installed successfully."
-    } catch {
-        Write-Error "Failed to install VS Code: $_"
-    }
-}
-
-
 # 3. Set Default Browser
 if ($SetDefaultBrowser -ne 'none') {
     Write-Host "Setting default browser to $SetDefaultBrowser..."
@@ -138,10 +73,6 @@ if ($SetDefaultBrowser -ne 'none') {
     if ($SetDefaultBrowser -eq 'chrome') {
         $progId = "ChromeHTML"
         $appName = "Google Chrome"
-    } elseif ($SetDefaultBrowser -eq 'browseros') {
-        # This ProgId is a placeholder and may need to be corrected
-        $progId = "BrowserOSHTML"
-        $appName = "BrowserOS"
     }
 
     if ($progId) {
