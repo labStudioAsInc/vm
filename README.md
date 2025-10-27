@@ -5,7 +5,7 @@
 
   **This repository provides scripts and workflows to set up temporary virtual machines (Windows, macOS, and Ubuntu) using GitHub Actions, with remote desktop access and optional persistence.**
 
-  [Overview](#overview) • [Getting Started](#getting-started) • [Persistence Options](#persistence-options) • [Workflow Inputs](#workflow-inputs) • [Secrets Configuration](#secrets-configuration) • [Troubleshooting](#troubleshooting)
+  [Overview](#overview) • [Getting Started](#getting-started) • [Persistence Options](#persistence-options) • [macOS VM Guidance](#macos-vm) • [Workflow Inputs](#workflow-inputs) • [Secrets Configuration](#secrets-configuration) • [Troubleshooting](#troubleshooting)
 
 </div>
 
@@ -13,8 +13,6 @@
 
 This project allows you to create free virtual machines directly from your GitHub repository using GitHub Actions. Get instant access to a full desktop environment for development, testing, or any other task.
 
-> [!WARNING]
-> **macOS and Ubuntu versions are currently not being maintained and may be unstable. Please use Windows for the best experience.**
 
 ### ✨ Features
 
@@ -60,6 +58,8 @@ Go to your forked repository's `Settings` > `Secrets and variables` > `Actions` 
 3.  Use a remote desktop client to connect:
     *   **RDP (Windows & Ubuntu)**: Use Microsoft Remote Desktop or any RDP client.
     *   **VNC (macOS)**: Use VNC Viewer or a similar client.
+
+    See the [macOS VM Guidance](#macos-vm) for more details on VNC clients and connecting with Cloudflare.
 4.  Enter the connection details, your username, and the password you set in the `USER_PASSWORD` secret.
 
 ## <a name="persistence-options"></a>💾 Persistence Options
@@ -77,6 +77,39 @@ For Windows VMs, you can choose how your data is persisted between sessions.
 - **User Data**: Desktop, Documents, Downloads, etc.
 - **Browser Data**: Complete profiles for Chrome, Edge, and Firefox.
 - **Application Settings**: Data from `AppData/Roaming`.
+
+## <a name="macos-vm"></a>macOS VM Guidance
+
+Connecting to the macOS VM is straightforward, but there are a few platform-specific details to keep in mind.
+
+### Connecting with VNC
+
+The macOS runner uses the built-in VNC server. To connect, you will need a VNC client:
+
+- **RealVNC**: A popular, multi-platform VNC client.
+- **TightVNC**: Another widely used, free VNC client.
+- **Screen Sharing**: The native VNC client on macOS.
+
+When connecting, use the address and port provided in the workflow logs.
+
+### Connecting from Android
+
+You can also connect to the macOS VM from an Android device using a VNC client.
+
+- **[RealVNC Viewer](https://play.google.com/store/apps/details?id=com.realvnc.viewer.android)**: A free and popular VNC client available on the Google Play Store.
+
+Install the app, enter the connection details from the workflow logs, and you'll be able to control your macOS VM from your Android device.
+
+### Virtual Sound Card
+
+The `install_apps` input now supports `virtual_sound_card` for macOS. This installs [BlackHole](https://github.com/ExistentialAudio/BlackHole), a virtual audio driver that allows you to route audio between applications.
+
+### Cloudflare Tunnel
+
+For macOS, you can use either `ngrok` or `cloudflare` as the tunnel provider. If you choose Cloudflare, you'll need to:
+
+1.  **Install `cloudflared` on your local machine.** Follow the official [Cloudflare documentation](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/) for instructions.
+2.  **Authenticate with your Cloudflare account.** When you run the connection command from the workflow logs, you will be prompted to log in.
 
 ## <a name="workflow-inputs"></a>Workflow Inputs
 
@@ -98,7 +131,7 @@ Customize your VM when running the workflow from the **Actions** tab:
 | `region` | Ngrok region (`us`, `eu`, `ap`, `au`, `sa`, `jp`, `in`) | Choice | `in` | ngrok only |
 
 > [!NOTE]
-> **Windows supports ngrok only**. Cloudflare tunnels work on macOS and Ubuntu.
+> **Windows supports ngrok only**. Cloudflare and ngrok are supported on macOS and Ubuntu.
 
 ### 📦 Software Installation
 
@@ -106,7 +139,8 @@ Customize your VM when running the workflow from the **Actions** tab:
 | :--- | :--- | :--- | :--- | :--- |
 | `install_apps` | Comma-separated app list | String | `''` | All |
 
-**Example:** `virtual_sound_card`
+**Supported Apps:**
+- `virtual_sound_card`: Installs a virtual audio device. (Windows and macOS)
 
 ### 💾 Persistence (Windows Only)
 
