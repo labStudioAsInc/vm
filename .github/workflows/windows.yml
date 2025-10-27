@@ -23,8 +23,8 @@ on:
       install_virtual_sound_card:
         description: 'Install Virtual Sound Card'
         required: false
-        type: boolean
-        default: false
+        type: string
+        default: 'false'
       set_default_browser:
         description: 'Set Default Browser to Chrome/BrowserOS'
         required: false
@@ -33,8 +33,8 @@ on:
       enable_google_drive_persistence:
         description: 'Enable Google Drive Persistence'
         required: false
-        type: boolean
-        default: true
+        type: string
+        default: 'true'
     secrets:
       NGROK_AUTH_TOKEN:
         required: true
@@ -55,7 +55,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download previous backup artifact
-        if: inputs.enable_google_drive_persistence == true
+        if: inputs.enable_google_drive_persistence == 'true'
         uses: actions/download-artifact@v4
         with:
           name: rdp-session-backup-${{ inputs.username }}-latest
@@ -74,7 +74,7 @@ jobs:
         shell: pwsh
 
       - name: Test Google Drive authentication
-        if: inputs.enable_google_drive_persistence == true
+        if: inputs.enable_google_drive_persistence == 'true'
         env:
           GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -88,7 +88,7 @@ jobs:
         shell: pwsh
 
       - name: Restore user data from Google Drive
-        if: inputs.enable_google_drive_persistence == true
+        if: inputs.enable_google_drive_persistence == 'true'
         env:
           GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -102,7 +102,7 @@ jobs:
         shell: pwsh
 
       - name: Create Google Drive sync shortcuts
-        if: inputs.enable_google_drive_persistence == true
+        if: inputs.enable_google_drive_persistence == 'true'
         env:
           GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -317,7 +317,7 @@ jobs:
           sleep ${TIMEOUT_MINUTES}m
 
       - name: Final backup before shutdown
-        if: always() && inputs.enable_google_drive_persistence == true
+        if: always() && inputs.enable_google_drive_persistence == 'true'
         env:
           GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -332,7 +332,7 @@ jobs:
         shell: pwsh
 
       - name: Upload backup as artifact (with run number)
-        if: always() && inputs.enable_google_drive_persistence == true
+        if: always() && inputs.enable_google_drive_persistence == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: rdp-session-backup-${{ inputs.username }}-${{ github.run_number }}
@@ -344,7 +344,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload backup as latest artifact (for next session)
-        if: always() && inputs.enable_google_drive_persistence == true
+        if: always() && inputs.enable_google_drive_persistence == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: rdp-session-backup-${{ inputs.username }}-latest
