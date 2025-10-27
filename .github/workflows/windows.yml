@@ -44,6 +44,8 @@ on:
         required: false
       GOOGLE_SERVICE_ACCOUNT_JSON:
         required: false
+      GOOGLE_SHARED_DRIVE_ID:
+        required: false
 
 jobs:
   rdp-session:
@@ -59,7 +61,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: rdp-session-backup-${{ inputs.username }}-latest
-          path: ${{ env.TEMP }}
+          path: ./backups
         continue-on-error: true
 
       - name: Run pre-install script
@@ -78,6 +80,7 @@ jobs:
         env:
           GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHARED_DRIVE_ID: ${{ secrets.GOOGLE_SHARED_DRIVE_ID }}
         run: |
           Write-Host "Testing Google Drive authentication..."
           if (-not $env:GOOGLE_DRIVE_API_KEY -and -not $env:GOOGLE_SERVICE_ACCOUNT_JSON) {
@@ -92,6 +95,7 @@ jobs:
         env:
           GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHARED_DRIVE_ID: ${{ secrets.GOOGLE_SHARED_DRIVE_ID }}
         run: |
           Write-Host "Restoring user data from Google Drive..."
           if (-not $env:GOOGLE_DRIVE_API_KEY -and -not $env:GOOGLE_SERVICE_ACCOUNT_JSON) {
@@ -106,6 +110,7 @@ jobs:
         env:
           GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHARED_DRIVE_ID: ${{ secrets.GOOGLE_SHARED_DRIVE_ID }}
         run: |
           Write-Host "Creating desktop shortcuts for Google Drive sync..."
           if (-not $env:GOOGLE_DRIVE_API_KEY -and -not $env:GOOGLE_SERVICE_ACCOUNT_JSON) {
@@ -321,6 +326,7 @@ jobs:
         env:
           GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHARED_DRIVE_ID: ${{ secrets.GOOGLE_SHARED_DRIVE_ID }}
         run: |
           Write-Host "Creating final backup before shutdown..."
           try {
@@ -336,10 +342,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rdp-session-backup-${{ inputs.username }}-${{ github.run_number }}
-          path: |
-            C:\RDPBackups\rdp-session-${{ inputs.username }}.zip
-            ${{ env.TEMP }}\github-artifact-rdp-session-${{ inputs.username }}.zip
-            ${{ env.TEMP }}\rdp-session-${{ inputs.username }}.zip
+          path: ./backups/rdp-session-${{ inputs.username }}.zip
           retention-days: 30
           if-no-files-found: warn
 
@@ -348,10 +351,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rdp-session-backup-${{ inputs.username }}-latest
-          path: |
-            C:\RDPBackups\rdp-session-${{ inputs.username }}.zip
-            ${{ env.TEMP }}\github-artifact-rdp-session-${{ inputs.username }}.zip
-            ${{ env.TEMP }}\rdp-session-${{ inputs.username }}.zip
+          path: ./backups/rdp-session-${{ inputs.username }}.zip
           retention-days: 7
           if-no-files-found: warn
           overwrite: true
