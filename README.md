@@ -5,7 +5,7 @@
 
   **This repository provides scripts and workflows to set up temporary virtual machines (Windows, macOS, and Ubuntu) using GitHub Actions, with remote desktop access and optional persistence.**
 
-  [Overview](#overview) • [Getting Started](#getting-started) • [How it Works](#how-it-works) • [Persistence Options](#persistence-options) • [Available Software](#available-software) • [Project Structure](#project-structure) • [Workflow Inputs](#workflow-inputs) • [Secrets Configuration](#secrets-configuration) • [Troubleshooting](#troubleshooting)
+  [Overview](#overview) • [Getting Started](#getting-started) • [Persistence Options](#persistence-options) • [Workflow Inputs](#workflow-inputs) • [Secrets Configuration](#secrets-configuration) • [Troubleshooting](#troubleshooting)
 
 </div>
 
@@ -27,8 +27,6 @@ This project allows you to create free virtual machines directly from your GitHu
 
 ## <a name="getting-started"></a>🏁 Getting Started
 
-Follow these steps to get your VM up and running in minutes.
-
 ### 1. Fork the Repository
 
 Click the **Fork** button at the top-right of this page to create your own copy of this repository.
@@ -42,6 +40,7 @@ Go to your forked repository's `Settings` > `Secrets and variables` > `Actions` 
 | `USER_PASSWORD`               | **Required**. The password for your VM user account.                                                     |
 | `NGROK_AUTH_TOKEN`            | **Required for ngrok**. See the [ngrok setup guide](NGROK_SETUP.md). |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | **Optional (Windows only)**. Required for Google Drive persistence. See the [setup guide](GOOGLE_DRIVE_SETUP.md). |
+| `GOOGLE_SHARED_DRIVE_ID`      | **Optional (Windows only)**. The ID of the Google Shared Drive for backups. See the [setup guide](GOOGLE_DRIVE_SETUP.md). |
 | `CF_TUNNEL_TOKEN`             | **Optional (macOS/Ubuntu only)**. Required for Cloudflare tunnels.                                       |
 
 > [!TIP]
@@ -63,61 +62,21 @@ Go to your forked repository's `Settings` > `Secrets and variables` > `Actions` 
     *   **VNC (macOS)**: Use VNC Viewer or a similar client.
 4.  Enter the connection details, your username, and the password you set in the `USER_PASSWORD` secret.
 
-## <a name="how-it-works"></a>⚙️ How it Works
-
-This project leverages GitHub Actions to automate the provisioning of virtual machines.
-
-1.  **Trigger**: The `Main Entrypoint` workflow is manually triggered.
-2.  **Provision**: GitHub creates a fresh VM based on your selected OS.
-3.  **Setup**: A pre-installation script runs to:
-    *   Create a user account.
-    *   Install selected software.
-    *   Enable remote access (RDP/VNC).
-4.  **Tunnel**: A secure tunnel is created using ngrok or Cloudflare to expose the remote desktop port to the internet.
-5.  **Persistence (Windows only)**: If enabled, user data is restored from Google Drive at the start of the session and backed up periodically and at the end.
-6.  **Connection**: You connect to the VM using the details provided in the workflow logs.
-7.  **Cleanup**: The VM is automatically destroyed when the workflow finishes (after the timeout, max 6 hours).
-
 ## <a name="persistence-options"></a>💾 Persistence Options
 
 For Windows VMs, you can choose how your data is persisted between sessions.
 
-| Option         | Description                                                                                                                                                             | Setup                                                                                                                            |
-| :------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------- |
-| **Google Drive** | **Recommended**. Automatically backs up and restores your user profile to your Google Drive. Provides full persistence for files, settings, and application data. | Requires `GOOGLE_SERVICE_ACCOUNT_JSON` secret. See the [Google Drive Setup Guide](GOOGLE_DRIVE_SETUP.md). Storage is limited by your Google account (e.g., 15GB for free accounts). |
-| **GitHub Artifacts** | Backs up your data as a GitHub artifact. Data can be restored in the next session, but artifacts expire after a set number of days. | No extra setup required, but less seamless than Google Drive.                                                                    |
-| **None**       | No data is saved. The VM is ephemeral, and all changes are lost when the session ends.                                                                                    | This is the default for macOS and Ubuntu.                                                                                         |
+| Option         | Description                                                                                                                                                             |
+| :------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Google Drive** | **Recommended**. Automatically backs up and restores your user profile to a Google Shared Drive. Provides full persistence for files, settings, and application data. |
+| **GitHub Artifacts** | Backs up your data as a GitHub artifact. Data can be restored in the next session, but artifacts expire after a set number of days. |
+| **None**       | No data is saved. The VM is ephemeral, and all changes are lost when the session ends.                                                                                    |
 
 ### What Gets Backed Up (with Google Drive)
 
 - **User Data**: Desktop, Documents, Downloads, etc.
 - **Browser Data**: Complete profiles for Chrome, Edge, and Firefox.
 - **Application Settings**: Data from `AppData/Roaming`.
-
-## <a name="available-software"></a>📦 Available Software
-
-You can choose to install the following software using the `install_apps` workflow input.
-
-| Software              | Windows | macOS | Ubuntu | Description                                     |
-| :-------------------- | :-----: | :---: | :----: | :---------------------------------------------- |
-| Virtual Sound Card    |    ✅    |   ✅   |   ✅    | Provides virtual audio drivers.                 |
-
-## <a name="project-structure"></a>📁 Project Structure
-
-`
-.
-├── .github/workflows/   # GitHub Actions workflows
-│   ├── entrypoint.yml   # Main workflow that calls OS-specific workflows
-│   ├── windows.yml      # Workflow for Windows VMs
-│   ├── macos.yml        # Workflow for macOS VMs
-│   └── ubuntu.yml       # Workflow for Ubuntu VMs
-├── scripts/             # Installation and utility scripts
-│   ├── preinstall-windows.ps1
-│   ├── preinstall-mac.sh
-│   ├── preinstall-ubuntu.sh
-│   └── google-drive-sync.ps1 # and other helper scripts
-└── README.md            # This file
-`
 
 ## <a name="workflow-inputs"></a>Workflow Inputs
 
@@ -179,7 +138,7 @@ Add these secrets to your repository: **Settings** → **Secrets and variables**
 | Secret | Description |
 | :--- | :--- |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Enables full Google Drive integration. See the [Google Drive Setup Guide](GOOGLE_DRIVE_SETUP.md). |
-
+| `GOOGLE_SHARED_DRIVE_ID` | The ID of the Google Shared Drive for backups. See the [Google Drive Setup Guide](GOOGLE_DRIVE_SETUP.md). |
 
 ## <a name="troubleshooting"></a>🔧 Troubleshooting
 
@@ -189,17 +148,6 @@ Add these secrets to your repository: **Settings** → **Secrets and variables**
 | :--- | :--- |
 | **"Secret not found" error** | Check secret names are exact: `USER_PASSWORD`, `NGROK_AUTH_TOKEN`, etc. |
 | **Tunnel connection fails** | Verify ngrok token is valid and has sufficient quota |
-| **Google Drive auth fails** | Ensure `GOOGLE_SERVICE_ACCOUNT_JSON` contains complete JSON |
+| **Google Drive auth fails** | Ensure `GOOGLE_SERVICE_ACCOUNT_JSON` contains complete JSON and the `GOOGLE_SHARED_DRIVE_ID` is correct. |
 | **Workflow times out** | Reduce `timeout` value or check if VM is overloaded |
 | **Can't connect to RDP/VNC** | Wait 2-3 minutes after "Connection Details" appear in logs |
-
-
-## <a name="disclaimer"></a>⚠️ Disclaimer & Usage Policy
-
-- **Usage**: This project is intended for development, testing, and learning purposes. Do not use it for cryptocurrency mining, gaming, or any illegal activities. Misuse may result in your GitHub account being suspended.
-- **Limitations**:
-    - **Runtime**: 6 hours maximum per session.
-    - **Resources**: VMs run on standard GitHub Actions runners with limited CPU and RAM.
-- **Data Responsibility**: You are responsible for the data you store. For Windows, data is backed up to your own Google Drive account. For macOS and Ubuntu, all data is lost after the session ends.
-
-**Use this project responsibly and in compliance with GitHub's Terms of Service.**

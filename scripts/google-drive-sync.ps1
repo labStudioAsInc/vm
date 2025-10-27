@@ -100,6 +100,7 @@ function Get-RDPBackupFolderId {
     param($AccessToken)
     
     $folderName = "RDP-Sessions-Backup"
+    $sharedDriveId = $env:GOOGLE_SHARED_DRIVE_ID
     
     try {
         if ($UseServiceAccount -and $AccessToken) {
@@ -108,8 +109,20 @@ function Get-RDPBackupFolderId {
                 "Authorization" = "Bearer $AccessToken"
                 "Content-Type" = "application/json"
             }
-            $searchUrl = "https://www.googleapis.com/drive/v3/files?q=name='$folderName' and mimeType='application/vnd.google-apps.folder'"
-            $response = Invoke-RestMethod -Uri $searchUrl -Method Get -Headers $headers
+
+            $searchParams = @{
+                q = "name='$folderName' and mimeType='application/vnd.google-apps.folder'"
+                supportsAllDrives = "true"
+            }
+
+            if ($sharedDriveId) {
+                $searchParams.driveId = $sharedDriveId
+                $searchParams.corpora = "drive"
+                $searchParams.includeItemsFromAllDrives = "true"
+            }
+
+            $searchUrl = "https://www.googleapis.com/drive/v3/files"
+            $response = Invoke-RestMethod -Uri $searchUrl -Method Get -Headers $headers -Body $searchParams
             
             if ($response.files.Count -gt 0) {
                 Write-Host "Found existing backup folder: $($response.files[0].name)"
@@ -121,9 +134,12 @@ function Get-RDPBackupFolderId {
             $createFolderBody = @{
                 name = $folderName
                 mimeType = "application/vnd.google-apps.folder"
-            } | ConvertTo-Json
+            }
+            if ($sharedDriveId) {
+                $createFolderBody.parents = @($sharedDriveId)
+            }
             
-            $createResponse = Invoke-RestMethod -Uri "https://www.googleapis.com/drive/v3/files" -Method Post -Headers $headers -Body $createFolderBody
+            $createResponse = Invoke-RestMethod -Uri "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true" -Method Post -Headers $headers -Body ($createFolderBody | ConvertTo-Json)
             Write-Host "Created backup folder with ID: $($createResponse.id)"
             return $createResponse.id
             
@@ -300,20 +316,14 @@ function Backup-UserData {
         return $false
     }
     
-    # Always save locally as backup and for GitHub artifacts
-    $localBackupDir = "C:\RDPBackups"
-    if (-not (Test-Path $localBackupDir)) {
-        New-Item -ItemType Directory -Path $localBackupDir -Force | Out-Null
+    # Always save locally for GitHub artifacts
+    $artifactDir = ".\backups"
+    if (-not (Test-Path $artifactDir)) {
+        New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
     }
-    
-    $localBackupPath = "$localBackupDir\$BackupFileName"
-    Copy-Item -Path $zipPath -Destination $localBackupPath -Force
-    Write-Host "Backup saved locally: $localBackupPath"
-    
-    # Also save to a standard location for GitHub artifacts
-    $artifactBackupPath = "$env:TEMP\github-artifact-$BackupFileName"
-    Copy-Item -Path $zipPath -Destination $artifactBackupPath -Force
-    Write-Host "Backup prepared for GitHub artifact: $artifactBackupPath"
+    $artifactPath = Join-Path $artifactDir $BackupFileName
+    Copy-Item -Path $zipPath -Destination $artifactPath -Force
+    Write-Host "Backup prepared for GitHub artifact: $artifactPath"
     
     # Try to upload to Google Drive
     if ($UseServiceAccount -and $accessToken) {
@@ -325,11 +335,14 @@ function Backup-UserData {
                 "Authorization" = "Bearer $accessToken"
             }
             
-            $searchUrl = "https://www.googleapis.com/drive/v3/files?q=name='$BackupFileName' and parents in '$folderId'"
+            $searchUrl = "https://www.googleapis.com/drive/v3/files?q=name='$BackupFileName' and parents in '$folderId'&supportsAllDrives=true&includeItemsFromAllDrives=true"
+            if ($env:GOOGLE_SHARED_DRIVE_ID) {
+                $searchUrl += "&driveId=$($env:GOOGLE_SHARED_DRIVE_ID)&corpora=drive"
+            }
             $existingFiles = Invoke-RestMethod -Uri $searchUrl -Method Get -Headers $headers
             
             foreach ($file in $existingFiles.files) {
-                $deleteUrl = "https://www.googleapis.com/drive/v3/files/$($file.id)"
+                $deleteUrl = "https://www.googleapis.com/drive/v3/files/$($file.id)?supportsAllDrives=true"
                 Invoke-RestMethod -Uri $deleteUrl -Method Delete -Headers $headers
                 Write-Host "Deleted existing backup: $($file.name)"
             }
@@ -365,7 +378,7 @@ function Backup-UserData {
                 "Content-Length" = $bodyBytes.Length
             }
             
-            $uploadUrl = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
+            $uploadUrl = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true"
             $response = Invoke-RestMethod -Uri $uploadUrl -Method Post -Headers $uploadHeaders -Body $bodyBytes
             
             Write-Host "Successfully uploaded backup to Google Drive: $($response.name) (ID: $($response.id))"
@@ -374,8 +387,10 @@ function Backup-UserData {
             return $true
             
         } catch {
-            Write-Warning "❌ Failed to upload to Google Drive: $_"
-            Write-Host "Error details: $($_.Exception.Message)"
+            $errorMessage = $_.Exception.Response.GetResponseStream()
+            $reader = New-Object System.IO.StreamReader($errorMessage)
+            $errorBody = $reader.ReadToEnd()
+            Write-Warning "❌ Failed to upload to Google Drive: $errorBody"
             Write-Host "📦 Backup will be available as GitHub artifact instead"
             Write-Host "Local backup available at: $localBackupPath"
         }
@@ -424,7 +439,10 @@ function Restore-UserData {
                 "Authorization" = "Bearer $accessToken"
             }
             
-            $searchUrl = "https://www.googleapis.com/drive/v3/files?q=name='$BackupFileName' and parents in '$folderId'"
+            $searchUrl = "https://www.googleapis.com/drive/v3/files?q=name='$BackupFileName' and parents in '$folderId'&supportsAllDrives=true&includeItemsFromAllDrives=true"
+            if ($env:GOOGLE_SHARED_DRIVE_ID) {
+                $searchUrl += "&driveId=$($env:GOOGLE_SHARED_DRIVE_ID)&corpora=drive"
+            }
             $response = Invoke-RestMethod -Uri $searchUrl -Method Get -Headers $headers
             
             if ($response.files.Count -gt 0) {
@@ -432,37 +450,29 @@ function Restore-UserData {
                 Write-Host "Found backup in Google Drive: $($response.files[0].name)"
                 
                 # Download the file
-                $downloadUrl = "https://www.googleapis.com/drive/v3/files/$fileId?alt=media"
+                $downloadUrl = "https://www.googleapis.com/drive/v3/files/$fileId?alt=media&supportsAllDrives=true"
                 Invoke-RestMethod -Uri $downloadUrl -Method Get -Headers $headers -OutFile $zipPath
                 Write-Host "Downloaded backup from Google Drive"
                 $foundBackup = $true
             }
         } catch {
-            Write-Warning "Failed to download from Google Drive: $_"
-            Write-Host "Error details: $($_.Exception.Message)"
+            $errorMessage = $_.Exception.Response.GetResponseStream()
+            $reader = New-Object System.IO.StreamReader($errorMessage)
+            $errorBody = $reader.ReadToEnd()
+            Write-Warning "Failed to download from Google Drive: $errorBody"
         }
     }
     
     # Fallback to local backup if Google Drive failed or not available
     if (-not $foundBackup) {
         # Check for GitHub artifact backup first
-        $artifactBackupPath = "$env:TEMP\github-artifact-$BackupFileName"
-        if (Test-Path $artifactBackupPath) {
-            Write-Host "Found GitHub artifact backup: $artifactBackupPath"
-            Copy-Item -Path $artifactBackupPath -Destination $zipPath -Force
+        $artifactDir = ".\backups"
+        $artifactPath = Join-Path $artifactDir $BackupFileName
+        if (Test-Path $artifactPath) {
+            Write-Host "Found GitHub artifact backup: $artifactPath"
+            Copy-Item -Path $artifactPath -Destination $zipPath -Force
             Write-Host "Using GitHub artifact backup for restore"
             $foundBackup = $true
-        } else {
-            # Check for local backup
-            $localBackupDir = "C:\RDPBackups"
-            $localBackupPath = "$localBackupDir\$BackupFileName"
-            
-            if (Test-Path $localBackupPath) {
-                Write-Host "Found local backup file: $localBackupPath"
-                Copy-Item -Path $localBackupPath -Destination $zipPath -Force
-                Write-Host "Using local backup for restore"
-                $foundBackup = $true
-            }
         }
         
         if (-not $foundBackup -and $ApiKey) {

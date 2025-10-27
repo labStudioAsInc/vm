@@ -6,7 +6,7 @@ This guide will help you set up Google Drive API integration for persistent RDP 
 
 - A Google account with Google Drive access
 - Access to Google Cloud Console
-- 2TB Google Drive storage (as mentioned in your setup)
+- Sufficient storage in your Google Drive account (e.g., 15GB for free accounts, or your account's storage limit)
 
 ## Step 1: Create a Google Cloud Project
 
@@ -23,9 +23,7 @@ This guide will help you set up Google Drive API integration for persistent RDP 
 3. Click on "Google Drive API"
 4. Click "Enable"
 
-## Step 3: Create Service Account (Recommended)
-
-**Note**: API keys have limited permissions and cannot upload/download files. Use a Service Account instead.
+## Step 3: Create Service Account
 
 1. Go to "APIs & Services" > "Credentials"
 2. Click "Create Credentials" > "Service Account"
@@ -38,23 +36,29 @@ This guide will help you set up Google Drive API integration for persistent RDP 
 9. Choose "JSON" format and click "Create"
 10. Save the downloaded JSON file securely
 
-## Step 4: Share Google Drive Folder with Service Account
+## Step 4: Create a Shared Drive and Add Service Account
 
 1. Open Google Drive in your browser
-2. Create a folder named "RDP-Sessions-Backup" (or use existing)
-3. Right-click the folder and select "Share"
-4. Add the service account email (from the JSON file, `client_email` field)
-5. Give it "Editor" permissions
-6. Click "Send"
+2. Right-click "Shared drives" in the left sidebar and select "New shared drive"
+3. Give it a name (e.g., "RDP Backups") and click "Create"
+4. Click "Manage members" at the top of the new shared drive page
+5. Add the service account email (from the JSON file, `client_email` field)
+6. Give it "Content manager" permissions
+7. Click "Send"
 
-## Step 5: Add Service Account to GitHub Secrets
+## Step 5: Get the Shared Drive ID
+
+1. In your browser, open the Shared Drive you just created
+2. The URL in the address bar will look like this: `https://drive.google.com/drive/folders/YOUR_SHARED_DRIVE_ID`
+3. Copy the `YOUR_SHARED_DRIVE_ID` part of the URL.
+
+## Step 6: Add Secrets to GitHub
 
 1. Go to your forked repository on GitHub
 2. Click "Settings" > "Secrets and variables" > "Actions"
-3. Click "New repository secret"
-4. Name: `GOOGLE_SERVICE_ACCOUNT_JSON`
-5. Value: Paste the entire contents of the JSON file from Step 3 (the complete JSON, including all the curly braces)
-6. Click "Add secret"
+3. Add the following secrets:
+   - **`GOOGLE_SERVICE_ACCOUNT_JSON`**: Paste the entire contents of the JSON file from Step 3.
+   - **`GOOGLE_SHARED_DRIVE_ID`**: Paste the Shared Drive ID from Step 5.
 
 **Example of what the JSON should look like:**
 ```json
