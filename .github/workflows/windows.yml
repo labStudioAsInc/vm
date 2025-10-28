@@ -3,6 +3,10 @@ name: Windows
 on:
   workflow_call:
     inputs:
+      os:
+        description: 'Operating System'
+        required: true
+        type: string
       username:
         description: 'Custom Username'
         required: true
@@ -63,7 +67,7 @@ on:
 
 jobs:
   rdp-session:
-    runs-on: windows-latest
+    runs-on: ${{ inputs.os }}
     timeout-minutes: ${{ fromJSON(inputs.timeout) }}
 
     steps:
@@ -112,7 +116,11 @@ jobs:
           echo "authtoken: $AUTH_TOKEN" >> $CONFIG_FILE
 
           echo "Installing ngrok..."
-          curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -o ngrok.zip
+          if [ "$RUNNER_ARCH" == "ARM64" ]; then
+            curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-arm64.zip -o ngrok.zip
+          else
+            curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -o ngrok.zip
+          fi
           unzip -o ngrok.zip
 
           echo "Starting ngrok tunnel on port $PORT..."
@@ -148,7 +156,11 @@ jobs:
         shell: bash
         run: |
           echo "Installing cloudflared..."
-          curl -L --output cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
+          if [ "$RUNNER_ARCH" == "ARM64" ]; then
+            curl -L --output cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-arm64.exe
+          else
+            curl -L --output cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
+          fi
 
           echo "Starting cloudflare tunnel..."
           CF_LOG="cloudflared.log"
@@ -183,7 +195,7 @@ jobs:
         run: |
           echo "🎯 CONNECTION DETAILS 🎯"
           echo "=========================================="
-          echo "OS: windows-latest"
+          echo "OS: ${{ inputs.os }}"
           echo "Protocol: RDP (Use Remote Desktop Connection)"
           echo "Port: 3389"
           echo "Address: ${{ env.RDP_ADDRESS }}"
@@ -199,7 +211,7 @@ jobs:
         run: |
           echo "🎯 CLOUDFLARE CONNECTION DETAILS 🎯"
           echo "=========================================="
-          echo "OS: windows-latest"
+          echo "OS: ${{ inputs.os }}"
           echo "Protocol: RDP (Use Remote Desktop Connection)"
           echo "Address: ${{ env.RDP_ADDRESS }}"
           echo "Username: ${{ inputs.username }}"
