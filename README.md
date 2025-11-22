@@ -53,6 +53,7 @@ For more detailed information, please refer to the documents in the `/docs` dire
 - [**Installation and Use**](docs/INSTALLATION_AND_USE.md): Step-by-step guide to using the workflows.
 - [**Configurations**](docs/CONFIGURATIONS.md): Detailed information on all workflow inputs and secrets.
 - [**Pre-installed Software**](docs/PRE_INSTALLED_SOFTWARE.md): A list of all available optional software.
+- [**SSH Termius Guide**](docs/SSH_TERMIUS_GUIDE.md): How to connect via SSH using Termius.
 - [**Disclaimer**](docs/DISCLAIMER.md): Important limitations and usage guidelines.
 
 > [!WARNING]
