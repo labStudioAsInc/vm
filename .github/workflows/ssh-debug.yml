@@ -80,7 +80,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then
-            sudo dscl . -passwd /Users/runner '' "${{ secrets.USER_PASSWORD }}"
+            sudo sysadminctl -resetPasswordFor runner -newPassword "${{ secrets.USER_PASSWORD }}"
             sudo systemsetup -setremotelogin on
           else
             echo "runner:${{ secrets.USER_PASSWORD }}" | sudo chpasswd
