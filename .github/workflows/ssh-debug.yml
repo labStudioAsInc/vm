@@ -44,6 +44,16 @@ jobs:
           fi
         shell: bash
 
+      - name: Install Gemini CLI (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          if npm install -g @google/gemini-cli; then
+            echo "Gemini CLI installed successfully."
+          else
+            echo "Warning: Failed to install Gemini CLI."
+          fi
+        shell: bash
+
       - name: Install Kiro CLI (Windows)
         if: runner.os == 'Windows'
         run: |
@@ -52,6 +62,17 @@ jobs:
             Write-Host "Kiro CLI installed successfully via WSL."
           } catch {
             Write-Warning "Failed to install Kiro CLI via WSL: $_"
+          }
+        shell: pwsh
+
+      - name: Install Gemini CLI (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          try {
+            npm install -g @google/gemini-cli
+            Write-Host "Gemini CLI installed successfully."
+          } catch {
+            Write-Warning "Failed to install Gemini CLI: $_"
           }
         shell: pwsh
 
