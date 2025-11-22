@@ -34,48 +34,6 @@ jobs:
     runs-on: ${{ inputs.os }}
     
     steps:
-      - name: Install Kiro CLI (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: |
-          if curl -fsSL https://install.kiro.sh | bash; then
-            echo "Kiro CLI installed successfully."
-          else
-            echo "Warning: Failed to install Kiro CLI from primary source."
-          fi
-        shell: bash
-
-      - name: Install Gemini CLI (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: |
-          if curl -fsSL https://googlegemini.github.io/gemini-cli/install.sh | bash; then
-            echo "Gemini CLI installed successfully."
-          else
-            echo "Warning: Failed to install Gemini CLI."
-          fi
-        shell: bash
-
-      - name: Install Kiro CLI (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          try {
-            wsl curl -fsSL https://install.kiro.sh | wsl bash
-            Write-Host "Kiro CLI installed successfully via WSL."
-          } catch {
-            Write-Warning "Failed to install Kiro CLI via WSL: $_"
-          }
-        shell: pwsh
-
-      - name: Install Gemini CLI (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          try {
-            wsl curl -fsSL https://googlegemini.github.io/gemini-cli/install.sh | wsl bash
-            Write-Host "Gemini CLI installed successfully via WSL."
-          } catch {
-            Write-Warning "Failed to install Gemini CLI via WSL: $_"
-          }
-        shell: pwsh
-
       - name: Setup SSH (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
