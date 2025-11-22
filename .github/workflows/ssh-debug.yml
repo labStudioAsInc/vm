@@ -1,0 +1,58 @@
+name: SSH Debug Access
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: 'OS'
+        required: true
+        type: choice
+        options:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+
+jobs:
+  ssh:
+    runs-on: ${{ inputs.os }}
+    
+    steps:
+      - name: Setup SSH (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          echo "runner:${{ secrets.USER_PASSWORD }}" | sudo chpasswd
+          sudo sed -i 's/#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          [ "$RUNNER_OS" = "macOS" ] && sudo systemsetup -setremotelogin on || sudo systemctl restart sshd
+
+      - name: Setup SSH (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+          Start-Service sshd
+          Set-Service -Name sshd -StartupType Automatic
+          net user runneradmin "${{ secrets.USER_PASSWORD }}"
+
+      - name: Start Ngrok
+        run: |
+          curl -sO https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-${{ runner.os == 'Linux' && 'linux' || runner.os == 'macOS' && 'darwin' || 'windows' }}-amd64.${{ runner.os == 'Windows' && 'zip' || 'tgz' }}
+          [ "$RUNNER_OS" = "Windows" ] && unzip ngrok*.zip || tar xzf ngrok*.tgz
+          ./ngrok${{ runner.os == 'Windows' && '.exe' || '' }} config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+          ./ngrok${{ runner.os == 'Windows' && '.exe' || '' }} tcp 22 > /dev/null &
+          sleep 8
+        shell: bash
+
+      - name: Connection Info
+        run: |
+          URL=$(curl -s http://localhost:4040/api/tunnels | grep -o 'tcp://[^"]*' | head -1)
+          HOST=$(echo $URL | cut -d'/' -f3 | cut -d':' -f1)
+          PORT=$(echo $URL | cut -d':' -f3)
+          echo "=== TERMIUS CONNECTION ==="
+          echo "Host: $HOST"
+          echo "Port: $PORT"
+          echo "User: ${{ runner.os == 'Windows' && 'runneradmin' || 'runner' }}"
+          echo "Pass: (USER_PASSWORD secret)"
+        shell: bash
+
+      - name: Keep Alive
+        run: sleep 21600
+        shell: bash
