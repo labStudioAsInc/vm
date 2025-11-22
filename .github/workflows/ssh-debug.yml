@@ -22,7 +22,11 @@ jobs:
         run: |
           echo "runner:${{ secrets.USER_PASSWORD }}" | sudo chpasswd
           sudo sed -i 's/#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
-          [ "$RUNNER_OS" = "macOS" ] && sudo systemsetup -setremotelogin on || sudo systemctl restart sshd
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            sudo systemsetup -setremotelogin on
+          else
+            sudo systemctl restart ssh
+          fi
 
       - name: Setup SSH (Windows)
         if: runner.os == 'Windows'
