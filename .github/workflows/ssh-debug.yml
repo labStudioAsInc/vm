@@ -11,12 +11,71 @@ on:
           - ubuntu-latest
           - macos-latest
           - windows-latest
+          - windows-11-arm
+      ngrok_region:
+        description: 'Ngrok Region'
+        required: true
+        type: choice
+        options:
+          - "auto"
+          - "us"
+          - "eu"
+          - "ap"
+          - "au"
+          - "sa"
+          - "jp"
+          - "in"
+          - "br"
+          - "za"
+        default: 'auto'
 
 jobs:
   ssh:
     runs-on: ${{ inputs.os }}
     
     steps:
+      - name: Install Kiro CLI (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          if curl -fsSL https://install.kiro.sh | bash; then
+            echo "Kiro CLI installed successfully."
+          else
+            echo "Warning: Failed to install Kiro CLI from primary source."
+          fi
+        shell: bash
+
+      - name: Install Gemini CLI (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          if curl -fsSL https://googlegemini.github.io/gemini-cli/install.sh | bash; then
+            echo "Gemini CLI installed successfully."
+          else
+            echo "Warning: Failed to install Gemini CLI."
+          fi
+        shell: bash
+
+      - name: Install Kiro CLI (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          try {
+            wsl curl -fsSL https://install.kiro.sh | wsl bash
+            Write-Host "Kiro CLI installed successfully via WSL."
+          } catch {
+            Write-Warning "Failed to install Kiro CLI via WSL: $_"
+          }
+        shell: pwsh
+
+      - name: Install Gemini CLI (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          try {
+            wsl curl -fsSL https://googlegemini.github.io/gemini-cli/install.sh | wsl bash
+            Write-Host "Gemini CLI installed successfully via WSL."
+          } catch {
+            Write-Warning "Failed to install Gemini CLI via WSL: $_"
+          }
+        shell: pwsh
+
       - name: Setup SSH (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
@@ -41,7 +100,7 @@ jobs:
           curl -sO https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-${{ runner.os == 'Linux' && 'linux' || runner.os == 'macOS' && 'darwin' || 'windows' }}-amd64.${{ runner.os == 'Windows' && 'zip' || 'tgz' }}
           [ "$RUNNER_OS" = "Windows" ] && unzip ngrok*.zip || tar xzf ngrok*.tgz
           ./ngrok${{ runner.os == 'Windows' && '.exe' || '' }} config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
-          ./ngrok${{ runner.os == 'Windows' && '.exe' || '' }} tcp 22 > /dev/null &
+          ./ngrok${{ runner.os == 'Windows' && '.exe' || '' }} tcp 22 --region=${{ inputs.ngrok_region }} > /dev/null &
           sleep 8
         shell: bash
 
