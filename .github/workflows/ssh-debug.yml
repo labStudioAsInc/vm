@@ -34,6 +34,27 @@ jobs:
     runs-on: ${{ inputs.os }}
     
     steps:
+      - name: Install Kiro CLI (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          if curl -fsSL https://cli.kiro.dev/install | bash; then
+            echo "Kiro CLI installed successfully."
+          else
+            echo "Warning: Failed to install Kiro CLI."
+          fi
+        shell: bash
+
+      - name: Install Kiro CLI (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          try {
+            wsl curl -fsSL https://cli.kiro.dev/install | wsl bash
+            Write-Host "Kiro CLI installed successfully via WSL."
+          } catch {
+            Write-Warning "Failed to install Kiro CLI via WSL: $_"
+          }
+        shell: pwsh
+
       - name: Setup SSH (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
