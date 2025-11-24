@@ -1,0 +1,144 @@
+name: SSH Access
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: 'Select Operating System'
+        required: true
+        type: choice
+        options:
+        - windows-latest
+        - windows-11-arm
+        - macos-latest
+        - ubuntu-latest
+        default: 'ubuntu-latest'
+      username:
+        description: 'Custom Username'
+        required: true
+        type: string
+        default: 'Ashik'
+      tunnel_provider:
+        description: 'Select Tunnel Provider'
+        required: true
+        type: choice
+        options:
+        - ngrok
+        - cloudflare
+        default: 'ngrok'
+      region:
+        description: 'Select Ngrok Tunnel Region (only for ngrok)'
+        required: true
+        type: choice
+        options:
+        - "us"
+        - "eu"
+        - "ap"
+        - "au"
+        - "sa"
+        - "jp"
+        - "in"
+        default: 'in'
+      timeout:
+        description: 'Session Timeout (minutes, max 360)'
+        required: true
+        type: string
+        default: '360'
+
+jobs:
+  ssh-session:
+    runs-on: ${{ github.event.inputs.os }}
+    timeout-minutes: ${{ fromJSON(github.event.inputs.timeout) }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH (Windows)
+        if: contains(github.event.inputs.os, 'windows')
+        run: |
+          Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+          Start-Service sshd
+          Set-Service -Name sshd -StartupType Automatic
+          New-LocalUser -Name "${{ github.event.inputs.username }}" -Password (ConvertTo-SecureString "${{ secrets.USER_PASSWORD }}" -AsPlainText -Force) -PasswordNeverExpires
+          Add-LocalGroupMember -Group "Administrators" -Member "${{ github.event.inputs.username }}"
+          New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force
+        shell: pwsh
+
+      - name: Setup SSH (macOS)
+        if: github.event.inputs.os == 'macos-latest'
+        run: |
+          sudo dscl . -create /Users/${{ github.event.inputs.username }}
+          sudo dscl . -create /Users/${{ github.event.inputs.username }} UserShell /bin/bash
+          sudo dscl . -create /Users/${{ github.event.inputs.username }} RealName "${{ github.event.inputs.username }}"
+          sudo dscl . -create /Users/${{ github.event.inputs.username }} UniqueID 1001
+          sudo dscl . -create /Users/${{ github.event.inputs.username }} PrimaryGroupID 80
+          sudo dscl . -create /Users/${{ github.event.inputs.username }} NFSHomeDirectory /Users/${{ github.event.inputs.username }}
+          sudo dscl . -passwd /Users/${{ github.event.inputs.username }} "${{ secrets.USER_PASSWORD }}"
+          sudo dscl . -append /Groups/admin GroupMembership ${{ github.event.inputs.username }}
+          sudo createhomedir -c -u ${{ github.event.inputs.username }}
+          sudo systemsetup -setremotelogin on
+
+      - name: Setup SSH (Ubuntu)
+        if: github.event.inputs.os == 'ubuntu-latest'
+        run: |
+          sudo useradd -m -s /bin/bash ${{ github.event.inputs.username }}
+          echo "${{ github.event.inputs.username }}:${{ secrets.USER_PASSWORD }}" | sudo chpasswd
+          sudo usermod -aG sudo ${{ github.event.inputs.username }}
+          sudo sed -i 's/#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo systemctl restart ssh
+
+      - name: Install dependencies
+        run: |
+          if [[ "${{ github.event.inputs.os }}" == *"windows"* ]]; then
+            mkdir -p /usr/local/bin
+            curl -L -o /usr/local/bin/jq.exe https://github.com/stedolan/jq/releases/download/jq-1.6/jq-win64.exe
+            chmod +x /usr/local/bin/jq.exe
+          elif [[ "${{ github.event.inputs.os }}" == "macos-latest" ]]; then
+            brew install jq
+          else
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+        shell: bash
+
+      - name: Setup tunnel
+        env:
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+        run: |
+          chmod +x ./scripts/setup-tunnel.sh
+          ./scripts/setup-tunnel.sh "${{ github.event.inputs.tunnel_provider }}" "${{ github.event.inputs.os }}" "22" "${{ github.event.inputs.region }}" "$NGROK_AUTH_TOKEN"
+        shell: bash
+
+      - name: Display connection details
+        run: |
+          if [ "${{ github.event.inputs.tunnel_provider }}" == "ngrok" ]; then
+            echo "🎯 SSH CONNECTION DETAILS 🎯"
+            echo "=========================================="
+            echo "OS: ${{ github.event.inputs.os }}"
+            echo "Protocol: SSH"
+            echo "Host: ${{ env.RDP_ADDRESS }}"
+            echo "Port: ${{ env.RDP_PORT }}"
+            echo "Username: ${{ github.event.inputs.username }}"
+            echo "Password: ${{ secrets.USER_PASSWORD }}"
+            echo "=========================================="
+            echo "Connection command:"
+            echo "ssh ${{ github.event.inputs.username }}@${{ env.RDP_ADDRESS }} -p ${{ env.RDP_PORT }}"
+          else
+            echo "🎯 CLOUDFLARE SSH CONNECTION DETAILS 🎯"
+            echo "=========================================="
+            echo "OS: ${{ github.event.inputs.os }}"
+            echo "1. Install cloudflared on your local machine"
+            echo "2. Run: cloudflared access ssh --hostname ${{ env.RDP_ADDRESS }}"
+            echo ""
+            echo "Username: ${{ github.event.inputs.username }}"
+            echo "Password: ${{ secrets.USER_PASSWORD }}"
+            echo "=========================================="
+          fi
+        shell: bash
+
+      - name: Keep session alive
+        run: |
+          echo "SSH session is now active!"
+          echo "The workflow will remain running for ${{ github.event.inputs.timeout }} minutes."
+          sleep ${{ github.event.inputs.timeout }}m
+        shell: bash
