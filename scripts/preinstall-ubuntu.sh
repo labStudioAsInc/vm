@@ -16,7 +16,6 @@ fi
 
 USERNAME="$1"
 INSTALL_VIRTUAL_SOUND_CARD="${2:-false}"
-INSTALL_VSCODE="${3:-false}"
 
 echo "Starting Ubuntu pre-install steps for user '$USERNAME'..."
 sudo apt-get update
@@ -37,19 +36,6 @@ if [ "$INSTALL_VIRTUAL_SOUND_CARD" == "true" ]; then
     else
         echo "Error: Failed to load snd-aloop module."
     fi
-fi
-
-if [ "$INSTALL_VSCODE" == "true" ]; then
-    echo "Installing VS Code..."
-    sudo apt-get install -y wget gpg
-    wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
-    sudo install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/
-    sudo sh -c 'echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/trusted.gpg.d/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list'
-    sudo rm -f packages.microsoft.gpg
-    sudo apt-get install -y apt-transport-https
-    sudo apt-get update
-    sudo apt-get install -y code
-    echo "VS Code installed successfully."
 fi
 
 # 2. Create a new user

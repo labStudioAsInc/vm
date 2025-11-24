@@ -16,8 +16,6 @@ fi
 
 USERNAME="$1"
 INSTALL_VIRTUAL_SOUND_CARD="${2:-false}"
-INSTALL_GITHUB_DESKTOP="${3:-false}"
-INSTALL_VSCODE="${4:-false}"
 
 echo "Starting macOS pre-install steps for user '$USERNAME'..."
 
@@ -28,24 +26,6 @@ if [ "$INSTALL_VIRTUAL_SOUND_CARD" == "true" ]; then
         brew install blackhole-2ch
     else
         echo "Warning: Homebrew not found. Skipping BlackHole installation."
-    fi
-fi
-
-if [ "$INSTALL_GITHUB_DESKTOP" == "true" ]; then
-    echo "Installing GitHub Desktop..."
-    if command -v brew &> /dev/null; then
-        brew install --cask github
-    else
-        echo "Warning: Homebrew not found. Skipping GitHub Desktop installation."
-    fi
-fi
-
-if [ "$INSTALL_VSCODE" == "true" ]; then
-    echo "Installing VS Code..."
-    if command -v brew &> /dev/null; then
-        brew install --cask visual-studio-code
-    else
-        echo "Warning: Homebrew not found. Skipping VS Code installation."
     fi
 fi
 
