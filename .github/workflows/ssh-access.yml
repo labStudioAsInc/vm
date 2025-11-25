@@ -63,6 +63,14 @@ jobs:
           New-LocalUser -Name "${{ github.event.inputs.username }}" -Password (ConvertTo-SecureString "${{ secrets.USER_PASSWORD }}" -AsPlainText -Force) -PasswordNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "${{ github.event.inputs.username }}"
           New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force
+          
+          Write-Host "Installing WSL..."
+          wsl --install -d Ubuntu --no-launch
+          Start-Sleep -Seconds 10
+          
+          Write-Host "Configuring WSL with Kiro CLI..."
+          wsl -d Ubuntu -u root bash -c "useradd -m -s /bin/bash ${{ github.event.inputs.username }} && echo '${{ github.event.inputs.username }}:${{ secrets.USER_PASSWORD }}' | chpasswd && usermod -aG sudo ${{ github.event.inputs.username }}"
+          wsl -d Ubuntu -u ${{ github.event.inputs.username }} bash -c "curl -fsSL https://install.kiro.aws | bash && echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc && git config --global user.email 'mashikahamed0@gmail.com' && git config --global user.name '@TheRealAshik'"
         shell: pwsh
 
       - name: Setup SSH (macOS)
@@ -78,6 +86,7 @@ jobs:
           sudo dscl . -append /Groups/admin GroupMembership ${{ github.event.inputs.username }}
           sudo createhomedir -c -u ${{ github.event.inputs.username }}
           sudo systemsetup -setremotelogin on
+          sudo -u ${{ github.event.inputs.username }} bash -c 'curl -fsSL https://install.kiro.aws | bash && echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> ~/.bash_profile && echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> ~/.zshrc && git config --global user.email "mashikahamed0@gmail.com" && git config --global user.name "@TheRealAshik"'
 
       - name: Setup SSH (Ubuntu)
         if: github.event.inputs.os == 'ubuntu-latest'
@@ -87,6 +96,7 @@ jobs:
           sudo usermod -aG sudo ${{ github.event.inputs.username }}
           sudo sed -i 's/#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
           sudo systemctl restart ssh
+          sudo -u ${{ github.event.inputs.username }} bash -c 'curl -fsSL https://install.kiro.aws | bash && echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> ~/.bashrc && git config --global user.email "mashikahamed0@gmail.com" && git config --global user.name "@TheRealAshik"'
 
       - name: Install dependencies
         run: |
