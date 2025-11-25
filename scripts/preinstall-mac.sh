@@ -45,4 +45,23 @@ fi
 echo "Step 3: Enabling Remote Management and Screen Sharing for '$USERNAME'..."
 /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -users "$USERNAME" -privs -all -restart -agent -menu
 
+# 4. Install Kiro CLI
+echo "Step 4: Installing Kiro CLI..."
+sudo -u "$USERNAME" bash -c 'curl -fsSL https://install.kiro.aws | bash'
+if [ $? -eq 0 ]; then
+    echo "Kiro CLI installed successfully."
+else
+    echo "Warning: Kiro CLI installation failed."
+fi
+
+# Add Kiro CLI to PATH
+sudo -u "$USERNAME" bash -c 'echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> ~/.bash_profile'
+sudo -u "$USERNAME" bash -c 'echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> ~/.zshrc'
+echo "PATH configured for Kiro CLI."
+
+# Configure Git
+sudo -u "$USERNAME" git config --global user.email "mashikahamed0@gmail.com"
+sudo -u "$USERNAME" git config --global user.name "@TheRealAshik"
+echo "Git configured."
+
 echo "macOS pre-install steps completed."

@@ -78,4 +78,22 @@ sudo -u $USERNAME chmod +x /home/$USERNAME/.xsession
 sudo systemctl restart xrdp
 echo "User session configured successfully."
 
+# 5. Install Kiro CLI
+echo "Step 5: Installing Kiro CLI..."
+sudo -u $USERNAME bash -c 'curl -fsSL https://install.kiro.aws | bash'
+if [ $? -eq 0 ]; then
+    echo "Kiro CLI installed successfully."
+else
+    echo "Warning: Kiro CLI installation failed."
+fi
+
+# Add Kiro CLI to PATH
+sudo -u $USERNAME bash -c 'echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> ~/.bashrc'
+echo "PATH configured for Kiro CLI."
+
+# Configure Git
+sudo -u $USERNAME git config --global user.email "mashikahamed0@gmail.com"
+sudo -u $USERNAME git config --global user.name "@TheRealAshik"
+echo "Git configured."
+
 echo "Ubuntu pre-install steps completed."
